@@ -1,5 +1,4 @@
 const DEFAULT_STATE = Object.freeze({ enabled: false, volume: 100, muted: false });
-const GAIN_RAMP_SECONDS = 0.02;
 const sessions = new Map();
 
 function publicState(session) {
@@ -18,20 +17,7 @@ function requireSession(tabId) {
 
 function applyGain(session) {
   const effectiveGain = session.muted ? 0 : session.volume / 100;
-  const gain = session.gainNode.gain;
-  const now = session.audioContext.currentTime;
-
-  // Hold the gain at its exact in-flight value before starting a new ramp. This
-  // avoids discontinuities when slider input events arrive faster than 20 ms.
-  if (typeof gain.cancelAndHoldAtTime === "function") {
-    gain.cancelAndHoldAtTime(now);
-  } else {
-    const currentGain = gain.value;
-    gain.cancelScheduledValues(now);
-    gain.setValueAtTime(currentGain, now);
-  }
-
-  gain.linearRampToValueAtTime(effectiveGain, now + GAIN_RAMP_SECONDS);
+  session.gainNode.gain.setValueAtTime(effectiveGain, session.audioContext.currentTime);
 }
 
 async function destroySession(tabId, notify = false) {

@@ -112,10 +112,12 @@ elements.processingToggle.addEventListener("change", () => {
 });
 
 elements.volumeSlider.addEventListener("input", () => {
-  const volume = Number(elements.volumeSlider.value);
-  elements.volumeOutput.value = `${volume}%`;
-  elements.volumeOutput.textContent = `${volume}%`;
-  void setVolume(volume);
+  elements.volumeOutput.value = `${elements.volumeSlider.value}%`;
+  elements.volumeOutput.textContent = `${elements.volumeSlider.value}%`;
+});
+
+elements.volumeSlider.addEventListener("change", () => {
+  void setVolume(Number(elements.volumeSlider.value));
 });
 
 elements.resetButton.addEventListener("click", () => {
