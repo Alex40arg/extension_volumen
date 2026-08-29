@@ -1,0 +1,288 @@
+Quiero que implementes la primera versión funcional de este proyecto de extensión de Chrome.
+
+Antes de modificar o crear archivos:
+
+1. Lee completamente `DEVELOPMENT_SPEC.md`.
+2. Lee `README.md`.
+3. Trata la carpeta actual como la raíz del proyecto.
+4. Respeta estrictamente las reglas de privacidad, permisos, arquitectura, backups y alcance definidas en `DEVELOPMENT_SPEC.md`.
+
+## Objetivo de esta tarea
+
+Implementar exclusivamente la **versión v0.1** de la extensión.
+
+No implementes todavía:
+
+* ecualizador;
+* presets de EQ;
+* visualizador;
+* perfiles por sitio;
+* telemetría;
+* funciones extra no pedidas;
+* dependencias externas.
+
+La prioridad es obtener una primera versión simple, estable, auditable y segura.
+
+---
+
+## Funcionalidad requerida
+
+La extensión debe permitir controlar de forma independiente el volumen de audio de la pestaña actual.
+
+Debe cumplir como mínimo con lo siguiente:
+
+* Manifest V3.
+* Estado OFF por defecto.
+* Abrir el popup NO debe modificar el audio.
+* El usuario debe activar explícitamente el procesamiento mediante un toggle ON/OFF.
+* Al activar una pestaña por primera vez, el volumen inicial debe ser exactamente 100%.
+* Nunca debe producirse un aumento automático de volumen al activar la extensión.
+* Slider de volumen entre 0% y 200%.
+* Paso recomendado: 5%.
+* Mostrar siempre el porcentaje actual.
+* Botón `Reset 100%`.
+* Botón o toggle `Mute`.
+* Mute no debe borrar el volumen seleccionado anteriormente.
+* Al desmutear debe volver al volumen anterior.
+* El procesamiento debe continuar aunque el popup se cierre.
+* Cada pestaña activa debe tener su propio volumen independiente.
+* Varias pestañas deben poder estar procesadas simultáneamente.
+* Cambiar el volumen de una pestaña no debe modificar ninguna otra.
+* Al apagar el procesamiento de una pestaña debe restaurarse el audio normal de esa pestaña.
+* Al cerrar una pestaña controlada deben liberarse sus recursos.
+* Los errores deben mostrarse de forma clara y segura.
+
+---
+
+## Arquitectura
+
+Usa la arquitectura definida en `DEVELOPMENT_SPEC.md`.
+
+La estructura puede ser similar a:
+
+```text
+manifest.json
+
+popup/
+    popup.html
+    popup.css
+    popup.js
+
+background/
+    service-worker.js
+
+audio/
+    offscreen.html
+    offscreen.js
+
+icons/
+
+README.md
+DEVELOPMENT_SPEC.md
+old_versions/
+```
+
+Puedes ajustar nombres si existe una razón técnica clara, pero mantén responsabilidades separadas.
+
+No construyas toda la extensión en un único archivo JavaScript.
+
+---
+
+## Audio
+
+Usa las APIs apropiadas de Chrome Manifest V3 y Web Audio API.
+
+La arquitectura esperada es conceptualmente:
+
+```text
+tab audio
+    ↓
+chrome.tabCapture
+    ↓
+MediaStream
+    ↓
+AudioContext
+    ↓
+GainNode
+    ↓
+audio output
+```
+
+El procesamiento persistente de audio debe mantenerse fuera del popup.
+
+El popup debe ser solamente la interfaz del usuario.
+
+---
+
+## Permisos
+
+Usa solamente los permisos mínimos necesarios.
+
+No agregues permisos amplios o relacionados con:
+
+* historial;
+* cookies;
+* contenido de páginas;
+* descargas;
+* browsingData;
+* webRequest;
+* `<all_urls>`;
+
+salvo que exista una necesidad técnica real y explícitamente justificada.
+
+No agregues permisos simplemente “por si acaso”.
+
+---
+
+## Privacidad
+
+La extensión no debe:
+
+* leer contenido de páginas;
+* leer historial;
+* leer cookies;
+* registrar navegación;
+* enviar datos a Internet;
+* utilizar analytics;
+* utilizar telemetría;
+* cargar scripts externos;
+* usar CDNs;
+* usar fuentes remotas;
+* realizar `fetch`, WebSocket o XMLHttpRequest hacia servicios externos.
+
+Todo el procesamiento debe ser local.
+
+---
+
+## Interfaz
+
+Crea un popup compacto y claro.
+
+Debe incluir al menos:
+
+* Nombre de la extensión.
+* Toggle `Audio processing` ON/OFF.
+* Slider de volumen.
+* Porcentaje actual.
+* Botón `Reset 100%`.
+* Control `Mute`.
+* Indicador claro del estado actual.
+* Zona breve para mostrar errores o mensajes.
+
+Cuando el procesamiento esté OFF:
+
+* slider y controles de audio pueden quedar deshabilitados;
+* debe quedar visualmente claro que la pestaña no está siendo procesada.
+
+Cuando esté ON:
+
+* los controles deben habilitarse;
+* debe mostrarse claramente que el audio de esa pestaña está activo bajo control de la extensión.
+
+No hace falta un diseño gráfico complejo todavía.
+
+Prioriza:
+
+* claridad;
+* contraste;
+* controles cómodos;
+* buena legibilidad;
+* estado ON/OFF inequívoco.
+
+---
+
+## Seguridad auditiva
+
+Este requisito es crítico.
+
+Nunca apliques automáticamente un gain superior a 1.0 cuando se activa una pestaña.
+
+Primera activación:
+
+```text
+100% = gain 1.0
+```
+
+El usuario debe mover manualmente el control para superar el 100%.
+
+No reutilices automáticamente el volumen de otra pestaña.
+
+---
+
+## Estado por pestaña
+
+Cada sesión debe asociarse al `tabId`.
+
+Ejemplo conceptual:
+
+```text
+Tab A → enabled, 150%, mute OFF
+Tab B → enabled, 65%, mute OFF
+Tab C → OFF
+```
+
+El popup debe consultar y mostrar el estado correspondiente a la pestaña actualmente activa.
+
+---
+
+## Backups
+
+Como todavía no existe una versión funcional anterior del código, NO es necesario crear un snapshot dentro de `old_versions` antes de esta implementación inicial.
+
+No elimines ni modifiques la carpeta `old_versions`.
+
+En futuras versiones se aplicarán las reglas de snapshot definidas en `DEVELOPMENT_SPEC.md`.
+
+---
+
+## README
+
+Actualiza `README.md` al terminar para incluir:
+
+* qué hace la extensión;
+* estado actual: `v0.1`;
+* funciones disponibles;
+* privacidad;
+* permisos utilizados y por qué;
+* instrucciones para instalarla localmente mediante:
+
+  * `chrome://extensions`
+  * Developer mode
+  * Load unpacked
+* limitaciones conocidas de esta primera versión.
+
+Mantén el README breve y claro.
+
+---
+
+## Validación antes de terminar
+
+Antes de considerar finalizada la tarea:
+
+1. Revisa `manifest.json`.
+2. Verifica que no haya permisos innecesarios.
+3. Verifica que no haya dependencias externas.
+4. Verifica que no haya llamadas de red.
+5. Verifica que el popup no procese audio por sí mismo.
+6. Verifica que el gain inicial sea 1.0.
+7. Verifica que una pestaña pueda apagarse sin afectar a otras.
+8. Verifica cleanup al cerrar pestañas.
+9. Verifica que cerrar el popup no detenga el procesamiento.
+10. Revisa posibles errores de sintaxis o referencias de rutas.
+11. Revisa que todos los archivos requeridos por el manifest existan.
+12. No agregues ninguna función fuera del alcance de v0.1.
+
+---
+
+## Al finalizar
+
+No hagas cambios adicionales fuera de este alcance.
+
+Devuélveme un resumen breve indicando:
+
+* archivos creados;
+* archivos modificados;
+* permisos utilizados;
+* arquitectura implementada;
+* cualquier limitación técnica conocida;
+* pasos exactos para cargar y probar la extensión en Chrome.
