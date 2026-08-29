@@ -671,6 +671,94 @@ Codex must:
 
 If an implementation requirement conflicts with this specification, Codex should explain the conflict rather than silently changing the architecture.
 
+## 25.1 Project Workspace
+
+Codex has read and write access to the current project directory.
+
+The current directory must be treated as the **project root**.
+
+Codex should use relative paths inside the project and must not depend on a specific absolute filesystem path or machine-specific directory name.
+
+All files required by the extension must remain inside the project directory unless explicitly instructed otherwise.
+
+Codex must not modify files outside the project root.
+
+---
+
+## 25.2 Version Backups
+
+The project uses an `old_versions` directory to preserve stable snapshots before significant modifications.
+
+Expected structure:
+
+```text
+old_versions/
+    v0.1/
+    v0.2/
+    v0.3/
+```
+
+Each version directory should contain a complete snapshot of the relevant project files from that version.
+
+Before performing a significant change to an existing stable version, Codex should:
+
+1. Determine the current project version.
+2. Create a corresponding backup directory inside `old_versions` if one does not already exist.
+3. Copy the current working project files into that version directory.
+4. Exclude the `old_versions` directory itself from the backup.
+5. Preserve the backup unchanged after creation.
+6. Only then modify the active project files.
+
+Example:
+
+Before beginning development of version `v0.2`, if the current working version is `v0.1`, preserve the current state as:
+
+```text
+old_versions/v0.1/
+```
+
+The backup should include files such as:
+
+```text
+manifest.json
+popup/
+background/
+audio/
+icons/
+README.md
+```
+
+and any other files required to reproduce that version.
+
+Do NOT recursively copy:
+
+```text
+old_versions/
+```
+
+into a version backup.
+
+---
+
+## 25.3 Backup Safety Rules
+
+Existing folders inside `old_versions` must be treated as read-only historical snapshots unless the user explicitly requests otherwise.
+
+Codex must NOT:
+
+* overwrite an existing historical version;
+* silently delete old versions;
+* modify files inside a completed backup;
+* reuse a version number for a different snapshot;
+* recursively include `old_versions` inside itself.
+
+If a requested backup version already exists, Codex should leave it untouched and report the situation instead of overwriting it.
+
+Git remains the primary source-control system.
+
+The `old_versions` directory exists as an additional convenient local snapshot system, not as a replacement for Git.
+
+
 ---
 
 # 26. Non-Goals for Version 0.1
