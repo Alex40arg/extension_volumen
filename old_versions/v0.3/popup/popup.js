@@ -1,4 +1,4 @@
-const EQ_BAND_COUNT = 7;
+const EQ_BAND_COUNT = 6;
 const DEFAULT_STATE = Object.freeze({
   enabled: false,
   volume: 100,

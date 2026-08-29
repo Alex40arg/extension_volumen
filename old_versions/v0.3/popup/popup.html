@@ -49,7 +49,7 @@
         <div class="equalizer-heading">
           <div>
             <p class="section-eyebrow">EQUALIZER</p>
-            <h2 id="equalizer-label">7-band EQ</h2>
+            <h2 id="equalizer-label">6-band EQ</h2>
           </div>
           <div class="equalizer-switch">
             <span id="equalizer-state">OFF</span>
@@ -63,17 +63,17 @@
         <fieldset id="equalizer-controls" class="equalizer-controls" disabled>
           <legend class="sr-only">Equalizer bands</legend>
           <div class="eq-band">
-            <label for="eq-band-0">30 Hz</label>
+            <label for="eq-band-0">60 Hz</label>
             <input id="eq-band-0" data-eq-band="0" type="range" min="-12" max="12" step="1" value="0">
             <output for="eq-band-0">0 dB</output>
           </div>
           <div class="eq-band">
-            <label for="eq-band-1">90 Hz</label>
+            <label for="eq-band-1">170 Hz</label>
             <input id="eq-band-1" data-eq-band="1" type="range" min="-12" max="12" step="1" value="0">
             <output for="eq-band-1">0 dB</output>
           </div>
           <div class="eq-band">
-            <label for="eq-band-2">300 Hz</label>
+            <label for="eq-band-2">350 Hz</label>
             <input id="eq-band-2" data-eq-band="2" type="range" min="-12" max="12" step="1" value="0">
             <output for="eq-band-2">0 dB</output>
           </div>
@@ -83,19 +83,14 @@
             <output for="eq-band-3">0 dB</output>
           </div>
           <div class="eq-band">
-            <label for="eq-band-4">3 kHz</label>
+            <label for="eq-band-4">3.5 kHz</label>
             <input id="eq-band-4" data-eq-band="4" type="range" min="-12" max="12" step="1" value="0">
             <output for="eq-band-4">0 dB</output>
           </div>
           <div class="eq-band">
-            <label for="eq-band-5">8 kHz</label>
+            <label for="eq-band-5">10 kHz</label>
             <input id="eq-band-5" data-eq-band="5" type="range" min="-12" max="12" step="1" value="0">
             <output for="eq-band-5">0 dB</output>
-          </div>
-          <div class="eq-band">
-            <label for="eq-band-6">15 kHz</label>
-            <input id="eq-band-6" data-eq-band="6" type="range" min="-12" max="12" step="1" value="0">
-            <output for="eq-band-6">0 dB</output>
           </div>
           <button id="flat-button" class="flat-button" type="button">Flat</button>
         </fieldset>

@@ -4,7 +4,7 @@ const DEFAULT_STATE = Object.freeze({
   volume: 100,
   muted: false,
   eqEnabled: false,
-  eqGains: Object.freeze(Array(7).fill(0))
+  eqGains: Object.freeze(Array(6).fill(0))
 });
 const PROTECTED_TAB_MESSAGE = "This tab cannot be controlled.";
 const START_FAILURE_MESSAGE = "Unable to start audio processing.";

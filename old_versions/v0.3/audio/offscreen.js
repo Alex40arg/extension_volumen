@@ -1,13 +1,12 @@
 const EQ_BANDS = Object.freeze([
   // Shelves at the spectrum edges give a more natural broad bass/treble shape;
-  // the five musical mid bands use moderate-Q peaking filters.
-  Object.freeze({ frequency: 30, type: "lowshelf" }),
-  Object.freeze({ frequency: 90, type: "peaking", q: 1 }),
-  Object.freeze({ frequency: 300, type: "peaking", q: 1 }),
+  // the four musical mid bands use moderate-Q peaking filters.
+  Object.freeze({ frequency: 60, type: "lowshelf" }),
+  Object.freeze({ frequency: 170, type: "peaking", q: 1 }),
+  Object.freeze({ frequency: 350, type: "peaking", q: 1 }),
   Object.freeze({ frequency: 1000, type: "peaking", q: 1 }),
-  Object.freeze({ frequency: 3000, type: "peaking", q: 1 }),
-  Object.freeze({ frequency: 8000, type: "peaking", q: 1 }),
-  Object.freeze({ frequency: 15000, type: "highshelf" })
+  Object.freeze({ frequency: 3500, type: "peaking", q: 1 }),
+  Object.freeze({ frequency: 10000, type: "highshelf" })
 ]);
 const DEFAULT_EQ_GAINS = Object.freeze(EQ_BANDS.map(() => 0));
 const DEFAULT_STATE = Object.freeze({
