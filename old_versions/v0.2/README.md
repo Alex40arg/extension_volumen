@@ -2,7 +2,7 @@
 
 Extensión local de Chrome para controlar de forma independiente el volumen de la pestaña actual.
 
-**Estado actual:** v0.3
+**Estado actual:** v0.2
 
 ## Funciones
 
@@ -16,9 +16,6 @@ Extensión local de Chrome para controlar de forma independiente el volumen de l
 - Recuperación ante fallos de captura y finalización inesperada del stream.
 - Cleanup idempotente y protección ante interacciones rápidas.
 - Estados OFF, ON, transición y error más claros en el popup.
-- Ecualizador gráfico de 6 bandas (60 Hz, 170 Hz, 350 Hz, 1 kHz, 3.5 kHz y 10 kHz), independiente por pestaña.
-- Ajuste de cada banda entre -12 dB y +12 dB, con actualización en tiempo real y botón **Flat**.
-- EQ OFF y curva plana por defecto para una activación segura.
 
 ## Privacidad y permisos
 
@@ -27,7 +24,7 @@ Todo el procesamiento ocurre localmente. La extensión no lee páginas, historia
 - `tabCapture`: obtiene el audio de una pestaña solamente después de la activación explícita del usuario.
 - `offscreen`: mantiene el motor Web Audio activo fuera del popup.
 
-No utiliza permisos de host ni dependencias externas. v0.3 mantiene exactamente
+No utiliza permisos de host ni dependencias externas. v0.2 mantiene exactamente
 los permisos mínimos de la versión anterior y no agrega conexiones externas.
 
 ## Instalación local
@@ -43,16 +40,14 @@ los permisos mínimos de la versión anterior y no agrega conexiones externas.
 1. Reproduce audio en una pestaña web normal.
 2. Abre el popup; debe indicar **OFF** y no cambiar el audio.
 3. Activa **Audio processing**; debe comenzar exactamente en 100%.
-4. Activa **Equalizer**, mueve una banda y usa **Flat** para volver la curva a 0 dB.
-5. Ajusta el volumen, prueba **Mute** y después **Reset 100%**; ninguno debe borrar el EQ.
-6. Repite en otra pestaña para comprobar que conserva volumen y EQ independientes.
-7. Desactiva el procesamiento para devolver el audio al control normal de Chrome.
+4. Ajusta el volumen, prueba **Mute** y después **Reset 100%**.
+5. Repite en otra pestaña para comprobar que conserva un volumen independiente.
+6. Desactiva el procesamiento para devolver el audio al control normal de Chrome.
 
-## Limitaciones de v0.3
+## Limitaciones de v0.2
 
 - Requiere Chrome 116 o posterior.
 - Chrome no permite capturar páginas internas, la Chrome Web Store y algunas páginas protegidas.
 - Los valores superiores a 100% pueden producir clipping según la fuente.
-- Los boosts elevados del EQ también pueden producir clipping; reduce las bandas o el volumen master si ocurre.
 - El estado es deliberadamente temporal: no se restaura después de reiniciar Chrome.
-- No incluye presets, perfiles por sitio ni visualizador.
+- No incluye ecualizador, perfiles por sitio ni visualizador.

@@ -1,11 +1,5 @@
 const OFFSCREEN_DOCUMENT_PATH = "audio/offscreen.html";
-const DEFAULT_STATE = Object.freeze({
-  enabled: false,
-  volume: 100,
-  muted: false,
-  eqEnabled: false,
-  eqGains: Object.freeze(Array(6).fill(0))
-});
+const DEFAULT_STATE = Object.freeze({ enabled: false, volume: 100, muted: false });
 const PROTECTED_TAB_MESSAGE = "This tab cannot be controlled.";
 const START_FAILURE_MESSAGE = "Unable to start audio processing.";
 
@@ -171,15 +165,6 @@ async function handlePopupMessage(message) {
       return enqueueForTab(tabId, () => updateSession("SET_VOLUME", tabId, { volume: message.volume }));
     case "SET_MUTED":
       return enqueueForTab(tabId, () => updateSession("SET_MUTED", tabId, { muted: message.muted }));
-    case "SET_EQ_ENABLED":
-      return enqueueForTab(tabId, () => updateSession("SET_EQ_ENABLED", tabId, { eqEnabled: message.eqEnabled }));
-    case "SET_EQ_BAND":
-      return enqueueForTab(tabId, () => updateSession("SET_EQ_BAND", tabId, {
-        bandIndex: message.bandIndex,
-        gain: message.gain
-      }));
-    case "FLAT_EQ":
-      return enqueueForTab(tabId, () => updateSession("FLAT_EQ", tabId));
     default:
       throw new Error("Unknown extension request.");
   }

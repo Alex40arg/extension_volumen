@@ -1,34 +1,11 @@
-const EQ_BANDS = Object.freeze([
-  // Shelves at the spectrum edges give a more natural broad bass/treble shape;
-  // the four musical mid bands use moderate-Q peaking filters.
-  Object.freeze({ frequency: 60, type: "lowshelf" }),
-  Object.freeze({ frequency: 170, type: "peaking", q: 1 }),
-  Object.freeze({ frequency: 350, type: "peaking", q: 1 }),
-  Object.freeze({ frequency: 1000, type: "peaking", q: 1 }),
-  Object.freeze({ frequency: 3500, type: "peaking", q: 1 }),
-  Object.freeze({ frequency: 10000, type: "highshelf" })
-]);
-const DEFAULT_EQ_GAINS = Object.freeze(EQ_BANDS.map(() => 0));
-const DEFAULT_STATE = Object.freeze({
-  enabled: false,
-  volume: 100,
-  muted: false,
-  eqEnabled: false,
-  eqGains: DEFAULT_EQ_GAINS
-});
-const PARAM_RAMP_SECONDS = 0.02;
+const DEFAULT_STATE = Object.freeze({ enabled: false, volume: 100, muted: false });
+const GAIN_RAMP_SECONDS = 0.02;
 const sessions = new Map();
 
 function publicState(session) {
   return session
-    ? {
-        enabled: true,
-        volume: session.volume,
-        muted: session.muted,
-        eqEnabled: session.eqEnabled,
-        eqGains: [...session.eqGains]
-      }
-    : { ...DEFAULT_STATE, eqGains: [...DEFAULT_EQ_GAINS] };
+    ? { enabled: true, volume: session.volume, muted: session.muted }
+    : { ...DEFAULT_STATE };
 }
 
 function requireSession(tabId) {
@@ -39,32 +16,22 @@ function requireSession(tabId) {
   return session;
 }
 
-function rampAudioParam(param, value, audioContext) {
-  const now = audioContext.currentTime;
-
-  // Hold the parameter at its exact in-flight value before starting a new ramp.
-  // This avoids discontinuities when slider input events arrive faster than 20 ms.
-  if (typeof param.cancelAndHoldAtTime === "function") {
-    param.cancelAndHoldAtTime(now);
-  } else {
-    const currentValue = param.value;
-    param.cancelScheduledValues(now);
-    param.setValueAtTime(currentValue, now);
-  }
-
-  param.linearRampToValueAtTime(value, now + PARAM_RAMP_SECONDS);
-}
-
 function applyGain(session) {
   const effectiveGain = session.muted ? 0 : session.volume / 100;
-  rampAudioParam(session.gainNode.gain, effectiveGain, session.audioContext);
-}
+  const gain = session.gainNode.gain;
+  const now = session.audioContext.currentTime;
 
-function applyEq(session) {
-  session.eqFilters.forEach((filter, index) => {
-    const effectiveGain = session.eqEnabled ? session.eqGains[index] : 0;
-    rampAudioParam(filter.gain, effectiveGain, session.audioContext);
-  });
+  // Hold the gain at its exact in-flight value before starting a new ramp. This
+  // avoids discontinuities when slider input events arrive faster than 20 ms.
+  if (typeof gain.cancelAndHoldAtTime === "function") {
+    gain.cancelAndHoldAtTime(now);
+  } else {
+    const currentGain = gain.value;
+    gain.cancelScheduledValues(now);
+    gain.setValueAtTime(currentGain, now);
+  }
+
+  gain.linearRampToValueAtTime(effectiveGain, now + GAIN_RAMP_SECONDS);
 }
 
 function disconnectNode(node, label) {
@@ -92,9 +59,6 @@ async function destroySession(tabId, notify = false) {
   }
 
   disconnectNode(session.sourceNode, `source node for tab ${tabId}`);
-  session.eqFilters.forEach((filter, index) => {
-    disconnectNode(filter, `EQ band ${index + 1} for tab ${tabId}`);
-  });
   disconnectNode(session.gainNode, `gain node for tab ${tabId}`);
 
   for (const track of session.stream.getTracks()) {
@@ -131,7 +95,6 @@ async function startSession(tabId, streamId) {
   let stream = null;
   let audioContext = null;
   let sourceNode = null;
-  let eqFilters = [];
   let gainNode = null;
 
   try {
@@ -147,25 +110,11 @@ async function startSession(tabId, streamId) {
 
     audioContext = new AudioContext();
     sourceNode = audioContext.createMediaStreamSource(stream);
-    eqFilters = EQ_BANDS.map((band) => {
-      const filter = audioContext.createBiquadFilter();
-      filter.type = band.type;
-      filter.frequency.setValueAtTime(band.frequency, audioContext.currentTime);
-      if (band.type === "peaking") {
-        filter.Q.setValueAtTime(band.q, audioContext.currentTime);
-      }
-      filter.gain.setValueAtTime(0, audioContext.currentTime);
-      return filter;
-    });
     gainNode = audioContext.createGain();
 
     // Hearing-safety invariant: every newly controlled tab starts at unity gain.
     gainNode.gain.setValueAtTime(1, audioContext.currentTime);
-    sourceNode.connect(eqFilters[0]);
-    for (let index = 0; index < eqFilters.length - 1; index += 1) {
-      eqFilters[index].connect(eqFilters[index + 1]);
-    }
-    eqFilters.at(-1).connect(gainNode);
+    sourceNode.connect(gainNode);
     gainNode.connect(audioContext.destination);
 
     if (audioContext.state === "suspended") {
@@ -181,12 +130,9 @@ async function startSession(tabId, streamId) {
       stream,
       audioContext,
       sourceNode,
-      eqFilters,
       gainNode,
       volume: 100,
       muted: false,
-      eqEnabled: false,
-      eqGains: [...DEFAULT_EQ_GAINS],
       handleTrackEnded
     };
     sessions.set(tabId, session);
@@ -200,7 +146,6 @@ async function startSession(tabId, streamId) {
       stream = null;
       audioContext = null;
       sourceNode = null;
-      eqFilters = [];
       gainNode = null;
       throw new Error("The captured stream ended during initialization.");
     }
@@ -208,7 +153,6 @@ async function startSession(tabId, streamId) {
     return publicState(session);
   } catch (error) {
     disconnectNode(sourceNode, "partial source node");
-    eqFilters.forEach((filter, index) => disconnectNode(filter, `partial EQ band ${index + 1}`));
     disconnectNode(gainNode, "partial gain node");
 
     for (const track of stream?.getTracks() || []) {
@@ -253,41 +197,6 @@ function setMuted(tabId, value) {
   return publicState(session);
 }
 
-function setEqEnabled(tabId, value) {
-  if (typeof value !== "boolean") {
-    throw new Error("Equalizer state must be a boolean.");
-  }
-
-  const session = requireSession(tabId);
-  session.eqEnabled = value;
-  applyEq(session);
-  return publicState(session);
-}
-
-function setEqBand(tabId, bandIndexValue, gainValue) {
-  const bandIndex = Number(bandIndexValue);
-  const gain = Number(gainValue);
-  if (!Number.isInteger(bandIndex) || bandIndex < 0 || bandIndex >= EQ_BANDS.length) {
-    throw new Error("A valid equalizer band is required.");
-  }
-  if (!Number.isInteger(gain) || gain < -12 || gain > 12) {
-    throw new Error("Equalizer gain must be between -12 and +12 dB in steps of 1 dB.");
-  }
-
-  const session = requireSession(tabId);
-  session.eqGains[bandIndex] = gain;
-  const effectiveGain = session.eqEnabled ? gain : 0;
-  rampAudioParam(session.eqFilters[bandIndex].gain, effectiveGain, session.audioContext);
-  return publicState(session);
-}
-
-function setFlatEq(tabId) {
-  const session = requireSession(tabId);
-  session.eqGains.fill(0);
-  applyEq(session);
-  return publicState(session);
-}
-
 async function handleMessage(message) {
   if (!Number.isInteger(message.tabId) && !["GET_SESSION_COUNT", "PING"].includes(message.type)) {
     throw new Error("A valid tab ID is required.");
@@ -307,12 +216,6 @@ async function handleMessage(message) {
       return { state: setVolume(message.tabId, message.volume) };
     case "SET_MUTED":
       return { state: setMuted(message.tabId, message.muted) };
-    case "SET_EQ_ENABLED":
-      return { state: setEqEnabled(message.tabId, message.eqEnabled) };
-    case "SET_EQ_BAND":
-      return { state: setEqBand(message.tabId, message.bandIndex, message.gain) };
-    case "FLAT_EQ":
-      return { state: setFlatEq(message.tabId) };
     case "GET_SESSION_COUNT":
       return { sessionCount: sessions.size };
     default:

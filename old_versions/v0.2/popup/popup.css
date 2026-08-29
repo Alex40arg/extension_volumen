@@ -8,7 +8,7 @@
 * { box-sizing: border-box; }
 
 body {
-  width: 360px;
+  width: 340px;
   margin: 0;
   background: #f4f7fb;
 }
@@ -16,8 +16,7 @@ body {
 button, input { font: inherit; }
 .panel { padding: 20px; }
 
-.header, .processing-row, .volume-heading, .button-row, .status,
-.equalizer-heading, .equalizer-switch, .eq-band {
+.header, .processing-row, .volume-heading, .button-row, .status {
   display: flex;
   align-items: center;
 }
@@ -56,7 +55,7 @@ h1 {
 .badge-off { color: #586579; background: #e2e7ef; }
 .badge-on { color: #075e45; background: #c9f3e4; }
 
-.processing-row, .audio-controls, .equalizer, .status {
+.processing-row, .audio-controls, .status {
   border: 1px solid #d9e0ea;
   border-radius: 12px;
   background: #ffffff;
@@ -181,80 +180,6 @@ button:disabled { cursor: not-allowed; opacity: 0.55; }
   border-color: #a6343f;
   color: #8c1d2a;
   background: #fff0f1;
-}
-
-.equalizer {
-  margin: 0 0 12px;
-  padding: 14px;
-}
-
-.equalizer-heading {
-  justify-content: space-between;
-  gap: 16px;
-}
-
-.section-eyebrow {
-  margin-bottom: 2px;
-  color: #5c6b82;
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.12em;
-}
-
-.equalizer-heading h2 { margin-bottom: 0; font-size: 14px; }
-
-.equalizer-switch { gap: 8px; }
-
-#equalizer-state {
-  min-width: 24px;
-  color: #68758a;
-  font-size: 10px;
-  font-weight: 800;
-  text-align: right;
-}
-
-.equalizer-controls {
-  min-width: 0;
-  padding: 12px 0 0;
-  margin: 12px 0 0;
-  border: 0;
-  border-top: 1px solid #e2e7ef;
-}
-
-.equalizer-controls:disabled { color: #7d899a; }
-
-.eq-band {
-  display: grid;
-  grid-template-columns: 52px minmax(0, 1fr) 48px;
-  gap: 8px;
-  min-width: 0;
-  min-height: 29px;
-}
-
-.eq-band label {
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.eq-band input {
-  width: 100%;
-  min-width: 0;
-  accent-color: #087f5b;
-  cursor: pointer;
-}
-
-.eq-band input:disabled { cursor: not-allowed; }
-
-.eq-band output {
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
-  text-align: right;
-}
-
-.flat-button {
-  width: 100%;
-  min-height: 34px;
-  margin-top: 7px;
 }
 
 .status {

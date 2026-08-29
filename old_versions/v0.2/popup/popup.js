@@ -1,11 +1,4 @@
-const EQ_BAND_COUNT = 6;
-const DEFAULT_STATE = Object.freeze({
-  enabled: false,
-  volume: 100,
-  muted: false,
-  eqEnabled: false,
-  eqGains: Object.freeze(Array(EQ_BAND_COUNT).fill(0))
-});
+const DEFAULT_STATE = Object.freeze({ enabled: false, volume: 100, muted: false });
 
 const elements = {
   processingToggle: document.querySelector("#processing-toggle"),
@@ -14,11 +7,6 @@ const elements = {
   volumeOutput: document.querySelector("#volume-output"),
   resetButton: document.querySelector("#reset-button"),
   muteButton: document.querySelector("#mute-button"),
-  equalizerToggle: document.querySelector("#equalizer-toggle"),
-  equalizerState: document.querySelector("#equalizer-state"),
-  equalizerControls: document.querySelector("#equalizer-controls"),
-  equalizerBands: [...document.querySelectorAll("[data-eq-band]")],
-  flatButton: document.querySelector("#flat-button"),
   stateBadge: document.querySelector("#state-badge"),
   status: document.querySelector("#status"),
   statusText: document.querySelector("#status-text"),
@@ -30,8 +18,6 @@ let currentTabUrl = "";
 let currentState = { ...DEFAULT_STATE };
 let busy = true;
 let volumeRequestNumber = 0;
-let eqRequestNumber = 0;
-let eqBusy = false;
 let transition = "";
 let currentError = "";
 
@@ -41,23 +27,11 @@ function showMessage(text = "") {
   elements.message.hidden = !text;
 }
 
-function normalizedEqGains(value) {
-  return Array.isArray(value) && value.length === EQ_BAND_COUNT
-    ? value.map((gain) => Number.isFinite(gain) ? gain : 0)
-    : Array(EQ_BAND_COUNT).fill(0);
-}
-
-function formatDb(value) {
-  return `${value > 0 ? "+" : ""}${value} dB`;
-}
-
 function render(state = currentState) {
   currentState = {
     enabled: Boolean(state.enabled),
     volume: Number.isFinite(state.volume) ? state.volume : 100,
-    muted: Boolean(state.muted),
-    eqEnabled: Boolean(state.eqEnabled),
-    eqGains: normalizedEqGains(state.eqGains)
+    muted: Boolean(state.muted)
   };
 
   elements.processingToggle.checked = currentState.enabled;
@@ -68,17 +42,6 @@ function render(state = currentState) {
   elements.volumeOutput.textContent = `${currentState.volume}%`;
   elements.muteButton.setAttribute("aria-pressed", String(currentState.muted));
   elements.muteButton.textContent = currentState.muted ? "Unmute" : "Mute";
-  elements.equalizerToggle.checked = currentState.eqEnabled;
-  elements.equalizerToggle.disabled = busy || eqBusy || !currentState.enabled;
-  elements.equalizerState.textContent = currentState.eqEnabled ? "ON" : "OFF";
-  elements.equalizerControls.disabled = busy || eqBusy || !currentState.enabled || !currentState.eqEnabled;
-  elements.equalizerBands.forEach((slider, index) => {
-    const gain = currentState.eqGains[index];
-    slider.value = String(gain);
-    const output = slider.parentElement.querySelector("output");
-    output.value = formatDb(gain);
-    output.textContent = formatDb(gain);
-  });
   elements.stateBadge.textContent = currentState.enabled ? "ON" : "OFF";
   elements.stateBadge.className = `badge ${currentState.enabled ? "badge-on" : "badge-off"}`;
   const statusKind = currentError ? "error" : currentState.enabled ? "on" : "off";
@@ -152,57 +115,6 @@ async function setVolume(volume) {
   }
 }
 
-async function setEqualizerEnabled(eqEnabled) {
-  eqBusy = true;
-  showMessage();
-  currentState = { ...currentState, eqEnabled };
-  render();
-
-  try {
-    currentState = await sendCommand("SET_EQ_ENABLED", { eqEnabled });
-  } catch (error) {
-    showMessage(error.message);
-    await refreshState();
-  } finally {
-    eqBusy = false;
-    render();
-  }
-}
-
-async function setEqBand(bandIndex, gain) {
-  const requestNumber = ++eqRequestNumber;
-  showMessage();
-
-  try {
-    const state = await sendCommand("SET_EQ_BAND", { bandIndex, gain });
-    if (requestNumber === eqRequestNumber) {
-      render(state);
-    }
-  } catch (error) {
-    if (requestNumber === eqRequestNumber) {
-      showMessage(error.message);
-      await refreshState();
-    }
-  }
-}
-
-async function setFlatEqualizer() {
-  eqRequestNumber += 1;
-  eqBusy = true;
-  showMessage();
-  render();
-
-  try {
-    currentState = await sendCommand("FLAT_EQ");
-  } catch (error) {
-    showMessage(error.message);
-    await refreshState();
-  } finally {
-    eqBusy = false;
-    render();
-  }
-}
-
 async function refreshState() {
   try {
     currentState = await sendCommand("GET_STATE");
@@ -245,35 +157,12 @@ elements.muteButton.addEventListener("click", async () => {
   }
 });
 
-elements.equalizerToggle.addEventListener("change", () => {
-  void setEqualizerEnabled(elements.equalizerToggle.checked);
-});
-
-elements.equalizerBands.forEach((slider) => {
-  slider.addEventListener("input", () => {
-    const bandIndex = Number(slider.dataset.eqBand);
-    const gain = Number(slider.value);
-    const eqGains = [...currentState.eqGains];
-    eqGains[bandIndex] = gain;
-    currentState = { ...currentState, eqGains };
-    const output = slider.parentElement.querySelector("output");
-    output.value = formatDb(gain);
-    output.textContent = formatDb(gain);
-    void setEqBand(bandIndex, gain);
-  });
-});
-
-elements.flatButton.addEventListener("click", () => {
-  void setFlatEqualizer();
-});
-
 chrome.runtime.onMessage.addListener((message) => {
   if (message?.target !== "popup" || message.type !== "TAB_STATE_CHANGED" || message.tabId !== currentTabId) {
     return false;
   }
 
   volumeRequestNumber += 1;
-  eqRequestNumber += 1;
   currentState = message.state || { ...DEFAULT_STATE };
   busy = false;
   transition = "";
