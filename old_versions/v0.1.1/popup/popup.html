@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Tab Audio Control</title>
+    <link rel="stylesheet" href="popup.css">
+  </head>
+  <body>
+    <main class="panel" aria-labelledby="extension-title">
+      <header class="header">
+        <div>
+          <p class="eyebrow">PER-TAB VOLUME</p>
+          <h1 id="extension-title">Tab Audio Control</h1>
+        </div>
+        <span id="state-badge" class="badge badge-off">OFF</span>
+      </header>
+
+      <section class="processing-row" aria-labelledby="processing-label">
+        <div>
+          <h2 id="processing-label">Audio processing</h2>
+          <p>Current tab only</p>
+        </div>
+        <label class="switch">
+          <input id="processing-toggle" type="checkbox" role="switch" aria-labelledby="processing-label">
+          <span class="switch-track" aria-hidden="true"></span>
+        </label>
+      </section>
+
+      <fieldset id="audio-controls" class="audio-controls" disabled>
+        <legend class="sr-only">Audio controls</legend>
+        <div class="volume-heading">
+          <label for="volume-slider">Volume</label>
+          <output id="volume-output" for="volume-slider">100%</output>
+        </div>
+        <input id="volume-slider" class="volume-slider" type="range" min="0" max="200" step="5" value="100">
+        <div class="scale" aria-hidden="true">
+          <span>0%</span>
+          <span class="normal-level">100%</span>
+          <span>200%</span>
+        </div>
+        <div class="button-row">
+          <button id="reset-button" type="button">Reset 100%</button>
+          <button id="mute-button" type="button" aria-pressed="false">Mute</button>
+        </div>
+      </fieldset>
+
+      <div id="status" class="status status-off" role="status" aria-live="polite">
+        <span class="status-dot" aria-hidden="true"></span>
+        <span id="status-text">Not active on this tab</span>
+      </div>
+      <p id="message" class="message" role="alert" aria-live="assertive" hidden></p>
+    </main>
+
+    <script src="popup.js"></script>
+  </body>
+</html>

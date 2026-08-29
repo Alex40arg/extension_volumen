@@ -1,12 +1,20 @@
 const OFFSCREEN_DOCUMENT_PATH = "audio/offscreen.html";
 const DEFAULT_STATE = Object.freeze({ enabled: false, volume: 100, muted: false });
+const PROTECTED_TAB_MESSAGE = "This tab cannot be controlled.";
+const START_FAILURE_MESSAGE = "Unable to start audio processing.";
 
 let creatingOffscreenDocument = null;
-let operationQueue = Promise.resolve();
+const tabOperationQueues = new Map();
 
-function enqueue(operation) {
-  const result = operationQueue.then(operation, operation);
-  operationQueue = result.catch(() => undefined);
+function enqueueForTab(tabId, operation) {
+  const previous = tabOperationQueues.get(tabId) || Promise.resolve();
+  const result = previous.then(operation, operation);
+  const queueTail = result.catch(() => undefined).finally(() => {
+    if (tabOperationQueues.get(tabId) === queueTail) {
+      tabOperationQueues.delete(tabId);
+    }
+  });
+  tabOperationQueues.set(tabId, queueTail);
   return result;
 }
 
@@ -20,16 +28,32 @@ async function hasOffscreenDocument() {
 }
 
 async function ensureOffscreenDocument() {
-  if (await hasOffscreenDocument()) {
-    return;
-  }
-
   if (!creatingOffscreenDocument) {
-    creatingOffscreenDocument = chrome.offscreen.createDocument({
-      url: OFFSCREEN_DOCUMENT_PATH,
-      reasons: ["USER_MEDIA"],
-      justification: "Route user-enabled tab audio through a local per-tab volume control."
-    }).finally(() => {
+    creatingOffscreenDocument = (async () => {
+      if (!(await hasOffscreenDocument())) {
+        await chrome.offscreen.createDocument({
+          url: OFFSCREEN_DOCUMENT_PATH,
+          reasons: ["USER_MEDIA"],
+          justification: "Route user-enabled tab audio through a local per-tab volume control."
+        });
+      }
+
+      // A newly created document can briefly exist before its message listener
+      // is ready. A small bounded handshake avoids racing the first activation.
+      let lastError = null;
+      for (let attempt = 0; attempt < 8; attempt += 1) {
+        try {
+          const response = await chrome.runtime.sendMessage({ target: "offscreen", type: "PING" });
+          if (response?.ok) {
+            return;
+          }
+        } catch (error) {
+          lastError = error;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 25));
+      }
+      throw lastError || new Error("The audio engine did not become ready.");
+    })().finally(() => {
       creatingOffscreenDocument = null;
     });
   }
@@ -54,10 +78,39 @@ async function getState(tabId) {
   return response.state;
 }
 
-async function enable(tabId) {
-  await ensureOffscreenDocument();
+function isProtectedTabUrl(url) {
+  if (typeof url !== "string" || !url) {
+    return false;
+  }
+
+  return /^(chrome|chrome-extension|edge|about|devtools):/i.test(url)
+    || /^https:\/\/(chromewebstore\.google\.com|chrome\.google\.com\/webstore)(\/|$)/i.test(url);
+}
+
+function looksLikeProtectedTabError(error) {
+  const details = String(error?.message || error);
+  return /(chrome:\/\/|edge:\/\/|web store|webstore|cannot be captured|not capturable|protected|restricted|permission denied)/i.test(details);
+}
+
+async function cleanupFailedStart(tabId) {
+  if (!(await hasOffscreenDocument())) {
+    return;
+  }
 
   try {
+    await sendToAudioEngine("STOP_SESSION", { tabId });
+  } catch (error) {
+    console.warn(`Tab Audio Control: partial cleanup failed for tab ${tabId}.`, error);
+  }
+}
+
+async function enable(tabId, tabUrl) {
+  if (isProtectedTabUrl(tabUrl)) {
+    throw new Error(PROTECTED_TAB_MESSAGE);
+  }
+
+  try {
+    await ensureOffscreenDocument();
     const existingState = await getState(tabId);
     if (existingState.enabled) {
       return existingState;
@@ -69,8 +122,11 @@ async function enable(tabId) {
     const response = await sendToAudioEngine("START_SESSION", { tabId, streamId });
     return response.state;
   } catch (error) {
-    await closeAudioEngineIfUnused();
-    throw error;
+    await cleanupFailedStart(tabId);
+    if (error?.message === PROTECTED_TAB_MESSAGE || looksLikeProtectedTabError(error)) {
+      throw new Error(PROTECTED_TAB_MESSAGE);
+    }
+    throw new Error(START_FAILURE_MESSAGE);
   }
 }
 
@@ -80,9 +136,6 @@ async function disable(tabId) {
   }
 
   const response = await sendToAudioEngine("STOP_SESSION", { tabId });
-  if (response.sessionCount === 0 && (await hasOffscreenDocument())) {
-    await chrome.offscreen.closeDocument();
-  }
   return { ...DEFAULT_STATE };
 }
 
@@ -103,23 +156,26 @@ async function handlePopupMessage(message) {
 
   switch (message.type) {
     case "GET_STATE":
-      return getState(tabId);
+      return enqueueForTab(tabId, () => getState(tabId));
     case "ENABLE":
-      return enqueue(() => enable(tabId));
+      return enqueueForTab(tabId, () => enable(tabId, message.tabUrl));
     case "DISABLE":
-      return enqueue(() => disable(tabId));
+      return enqueueForTab(tabId, () => disable(tabId));
     case "SET_VOLUME":
-      return enqueue(() => updateSession("SET_VOLUME", tabId, { volume: message.volume }));
+      return enqueueForTab(tabId, () => updateSession("SET_VOLUME", tabId, { volume: message.volume }));
     case "SET_MUTED":
-      return enqueue(() => updateSession("SET_MUTED", tabId, { muted: message.muted }));
+      return enqueueForTab(tabId, () => updateSession("SET_MUTED", tabId, { muted: message.muted }));
     default:
       throw new Error("Unknown extension request.");
   }
 }
 
-function userFacingError(type) {
+function userFacingError(error, type) {
+  if (error?.message === PROTECTED_TAB_MESSAGE || error?.message === START_FAILURE_MESSAGE) {
+    return error.message;
+  }
   if (type === "ENABLE") {
-    return "This tab cannot be controlled. Try a regular webpage with audio.";
+    return START_FAILURE_MESSAGE;
   }
   return "Unable to update audio processing for this tab.";
 }
@@ -133,33 +189,21 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     .then((state) => sendResponse({ ok: true, state }))
     .catch((error) => {
       console.error(`Tab Audio Control: ${message.type} failed.`, error);
-      sendResponse({ ok: false, error: userFacingError(message.type) });
+      sendResponse({ ok: false, error: userFacingError(error, message.type) });
     });
 
   return true;
 });
 
-async function closeAudioEngineIfUnused() {
-  if (!(await hasOffscreenDocument())) {
-    return;
-  }
-
-  const response = await sendToAudioEngine("GET_SESSION_COUNT");
-  if (response.sessionCount === 0 && (await hasOffscreenDocument())) {
-    await chrome.offscreen.closeDocument();
-  }
-}
-
 chrome.tabs.onRemoved.addListener((tabId) => {
-  void enqueue(async () => {
+  void enqueueForTab(tabId, async () => {
     if (!(await hasOffscreenDocument())) {
       return;
     }
 
     await sendToAudioEngine("STOP_SESSION", { tabId });
-    await closeAudioEngineIfUnused();
   }).catch((error) => {
-    console.error(`Tab Audio Control: cleanup failed for tab ${tabId}.`, error);
+    console.warn(`Tab Audio Control: cleanup failed for closed tab ${tabId}.`, error);
   });
 });
 
@@ -168,8 +212,22 @@ chrome.runtime.onMessage.addListener((message) => {
     return false;
   }
 
-  void enqueue(closeAudioEngineIfUnused).catch((error) => {
-    console.error("Tab Audio Control: unable to release the idle audio engine.", error);
+  const tabId = message.tabId;
+  if (!Number.isInteger(tabId)) {
+    return false;
+  }
+
+  void enqueueForTab(tabId, async () => {
+    const state = await getState(tabId);
+    await chrome.runtime.sendMessage({
+      target: "popup",
+      type: "TAB_STATE_CHANGED",
+      tabId,
+      reason: "stream-ended",
+      state
+    }).catch(() => undefined);
+  }).catch((error) => {
+    console.warn(`Tab Audio Control: unable to report ended session for tab ${tabId}.`, error);
   });
   return false;
 });

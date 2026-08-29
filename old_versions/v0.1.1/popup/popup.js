@@ -14,15 +14,11 @@ const elements = {
 };
 
 let currentTabId = null;
-let currentTabUrl = "";
 let currentState = { ...DEFAULT_STATE };
 let busy = true;
 let volumeRequestNumber = 0;
-let transition = "";
-let currentError = "";
 
 function showMessage(text = "") {
-  currentError = text;
   elements.message.textContent = text;
   elements.message.hidden = !text;
 }
@@ -44,16 +40,12 @@ function render(state = currentState) {
   elements.muteButton.textContent = currentState.muted ? "Unmute" : "Mute";
   elements.stateBadge.textContent = currentState.enabled ? "ON" : "OFF";
   elements.stateBadge.className = `badge ${currentState.enabled ? "badge-on" : "badge-off"}`;
-  const statusKind = currentError ? "error" : currentState.enabled ? "on" : "off";
-  elements.status.className = `status status-${statusKind}`;
-  elements.statusText.textContent = currentError
-    || (transition === "starting" ? "Starting audio processing…" : "")
-    || (transition === "stopping" ? "Stopping audio processing…" : "")
-    || (currentState.enabled
-      ? currentState.muted
-        ? "Audio processing active · Muted"
-        : "Audio processing active"
-      : "Not active on this tab");
+  elements.status.className = `status ${currentState.enabled ? "status-on" : "status-off"}`;
+  elements.statusText.textContent = currentState.enabled
+    ? currentState.muted
+      ? "Audio processing active · Muted"
+      : "Audio processing active"
+    : "Not active on this tab";
 }
 
 async function sendCommand(type, data = {}) {
@@ -61,7 +53,6 @@ async function sendCommand(type, data = {}) {
     target: "service-worker",
     type,
     tabId: currentTabId,
-    tabUrl: currentTabUrl,
     ...data
   });
 
@@ -74,25 +65,14 @@ async function sendCommand(type, data = {}) {
 
 async function setProcessing(enabled) {
   busy = true;
-  transition = enabled ? "starting" : "stopping";
   showMessage();
   render();
 
   try {
     currentState = await sendCommand(enabled ? "ENABLE" : "DISABLE");
   } catch (error) {
-    if (enabled) {
-      currentState = { ...DEFAULT_STATE };
-    } else {
-      try {
-        currentState = await sendCommand("GET_STATE");
-      } catch {
-        currentState = { ...DEFAULT_STATE };
-      }
-    }
     showMessage(error.message);
   } finally {
-    transition = "";
     busy = false;
     render();
   }
@@ -122,7 +102,6 @@ async function refreshState() {
     currentState = { ...DEFAULT_STATE };
     showMessage(error.message);
   } finally {
-    transition = "";
     busy = false;
     render();
   }
@@ -157,20 +136,6 @@ elements.muteButton.addEventListener("click", async () => {
   }
 });
 
-chrome.runtime.onMessage.addListener((message) => {
-  if (message?.target !== "popup" || message.type !== "TAB_STATE_CHANGED" || message.tabId !== currentTabId) {
-    return false;
-  }
-
-  volumeRequestNumber += 1;
-  currentState = message.state || { ...DEFAULT_STATE };
-  busy = false;
-  transition = "";
-  showMessage(currentState.enabled ? "" : "Audio processing stopped unexpectedly.");
-  render();
-  return false;
-});
-
 async function initialize() {
   render();
 
@@ -181,7 +146,6 @@ async function initialize() {
     }
 
     currentTabId = tab.id;
-    currentTabUrl = typeof tab.url === "string" ? tab.url : "";
     await refreshState();
   } catch (error) {
     busy = false;

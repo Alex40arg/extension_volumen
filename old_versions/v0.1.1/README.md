@@ -2,7 +2,7 @@
 
 Extensión local de Chrome para controlar de forma independiente el volumen de la pestaña actual.
 
-**Estado actual:** v0.2
+**Estado actual:** v0.1
 
 ## Funciones
 
@@ -12,10 +12,6 @@ Extensión local de Chrome para controlar de forma independiente el volumen de l
 - Varias pestañas procesadas al mismo tiempo.
 - El audio continúa procesándose al cerrar el popup.
 - Limpieza automática al desactivar el control o cerrar la pestaña.
-- Manejo claro y seguro de pestañas protegidas o no capturables.
-- Recuperación ante fallos de captura y finalización inesperada del stream.
-- Cleanup idempotente y protección ante interacciones rápidas.
-- Estados OFF, ON, transición y error más claros en el popup.
 
 ## Privacidad y permisos
 
@@ -24,8 +20,7 @@ Todo el procesamiento ocurre localmente. La extensión no lee páginas, historia
 - `tabCapture`: obtiene el audio de una pestaña solamente después de la activación explícita del usuario.
 - `offscreen`: mantiene el motor Web Audio activo fuera del popup.
 
-No utiliza permisos de host ni dependencias externas. v0.2 mantiene exactamente
-los permisos mínimos de la versión anterior y no agrega conexiones externas.
+No utiliza permisos de host ni dependencias externas.
 
 ## Instalación local
 
@@ -44,7 +39,7 @@ los permisos mínimos de la versión anterior y no agrega conexiones externas.
 5. Repite en otra pestaña para comprobar que conserva un volumen independiente.
 6. Desactiva el procesamiento para devolver el audio al control normal de Chrome.
 
-## Limitaciones de v0.2
+## Limitaciones de v0.1
 
 - Requiere Chrome 116 o posterior.
 - Chrome no permite capturar páginas internas, la Chrome Web Store y algunas páginas protegidas.

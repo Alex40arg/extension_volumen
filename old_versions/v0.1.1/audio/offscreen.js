@@ -34,47 +34,30 @@ function applyGain(session) {
   gain.linearRampToValueAtTime(effectiveGain, now + GAIN_RAMP_SECONDS);
 }
 
-function disconnectNode(node, label) {
-  if (!node) {
-    return;
-  }
-
-  try {
-    node.disconnect();
-  } catch (error) {
-    console.warn(`Tab Audio Control: ${label} disconnect failed.`, error);
-  }
-}
-
 async function destroySession(tabId, notify = false) {
   const session = sessions.get(tabId);
   if (!session) {
-    return false;
+    return;
   }
 
-  // Delete first so simultaneous STOP/track-ended cleanup becomes a no-op.
   sessions.delete(tabId);
   for (const track of session.stream.getTracks()) {
-    track.removeEventListener("ended", session.handleTrackEnded);
+    track.onended = null;
   }
 
-  disconnectNode(session.sourceNode, `source node for tab ${tabId}`);
-  disconnectNode(session.gainNode, `gain node for tab ${tabId}`);
+  try {
+    session.sourceNode.disconnect();
+    session.gainNode.disconnect();
+  } catch (error) {
+    console.warn(`Tab Audio Control: node disconnect failed for tab ${tabId}.`, error);
+  }
 
   for (const track of session.stream.getTracks()) {
-    try {
-      track.stop();
-    } catch (error) {
-      console.warn(`Tab Audio Control: track stop failed for tab ${tabId}.`, error);
-    }
+    track.stop();
   }
 
   if (session.audioContext.state !== "closed") {
-    try {
-      await session.audioContext.close();
-    } catch (error) {
-      console.warn(`Tab Audio Control: AudioContext close failed for tab ${tabId}.`, error);
-    }
+    await session.audioContext.close();
   }
 
   if (notify) {
@@ -84,7 +67,6 @@ async function destroySession(tabId, notify = false) {
       tabId
     }).catch(() => undefined);
   }
-  return true;
 }
 
 async function startSession(tabId, streamId) {
@@ -121,54 +103,39 @@ async function startSession(tabId, streamId) {
       await audioContext.resume();
     }
 
-    const handleTrackEnded = () => {
-      void destroySession(tabId, true).catch((error) => {
-        console.error(`Tab Audio Control: ended session cleanup failed for tab ${tabId}.`, error);
-      });
-    };
     const session = {
       stream,
       audioContext,
       sourceNode,
       gainNode,
       volume: 100,
-      muted: false,
-      handleTrackEnded
+      muted: false
     };
     sessions.set(tabId, session);
 
     for (const track of stream.getTracks()) {
-      track.addEventListener("ended", handleTrackEnded);
-    }
-
-    if (stream.getTracks().some((track) => track.readyState === "ended")) {
-      await destroySession(tabId, true);
-      stream = null;
-      audioContext = null;
-      sourceNode = null;
-      gainNode = null;
-      throw new Error("The captured stream ended during initialization.");
+      track.onended = () => {
+        void destroySession(tabId, true).catch((error) => {
+          console.error(`Tab Audio Control: ended session cleanup failed for tab ${tabId}.`, error);
+        });
+      };
     }
 
     return publicState(session);
   } catch (error) {
-    disconnectNode(sourceNode, "partial source node");
-    disconnectNode(gainNode, "partial gain node");
+    try {
+      sourceNode?.disconnect();
+      gainNode?.disconnect();
+    } catch {
+      // The nodes may never have been connected.
+    }
 
     for (const track of stream?.getTracks() || []) {
-      try {
-        track.stop();
-      } catch (cleanupError) {
-        console.warn("Tab Audio Control: partial track cleanup failed.", cleanupError);
-      }
+      track.stop();
     }
 
     if (audioContext && audioContext.state !== "closed") {
-      try {
-        await audioContext.close();
-      } catch (cleanupError) {
-        console.warn("Tab Audio Control: partial AudioContext cleanup failed.", cleanupError);
-      }
+      await audioContext.close();
     }
     throw error;
   }
@@ -198,13 +165,11 @@ function setMuted(tabId, value) {
 }
 
 async function handleMessage(message) {
-  if (!Number.isInteger(message.tabId) && !["GET_SESSION_COUNT", "PING"].includes(message.type)) {
+  if (!Number.isInteger(message.tabId) && message.type !== "GET_SESSION_COUNT") {
     throw new Error("A valid tab ID is required.");
   }
 
   switch (message.type) {
-    case "PING":
-      return {};
     case "GET_STATE":
       return { state: publicState(sessions.get(message.tabId)) };
     case "START_SESSION":
