@@ -1,0 +1,658 @@
+Lee completamente `DEVELOPMENT_SPEC.md` y `README.md` antes de modificar el proyecto.
+
+La versión actual `v0.3.1` funciona correctamente y el motor de audio está validado.
+
+Quiero implementar ahora la **versión v0.4**, enfocada en un rediseño completo de la interfaz del popup.
+
+El objetivo principal es:
+
+* pasar a una disposición horizontal;
+* convertir el ecualizador a sliders verticales;
+* adoptar una nueva identidad visual azul / rojo / blanco;
+* mejorar el aprovechamiento del espacio;
+* mantener exactamente la misma funcionalidad de audio existente.
+
+No implementar todavía presets guardados, analizador de espectro ni nuevas funciones DSP.
+
+---
+
+# 1. Backup obligatorio
+
+Antes de modificar los archivos activos:
+
+1. Guarda un snapshot completo de la versión actual en:
+
+`old_versions/v0.3.1/`
+
+2. Respeta las reglas de backup de `DEVELOPMENT_SPEC.md`.
+
+3. No sobrescribas snapshots existentes.
+
+4. No copies `old_versions` dentro del backup.
+
+5. Después del snapshot, modifica solamente los archivos activos.
+
+---
+
+# 2. Alcance de v0.4
+
+Esta versión es principalmente visual y de layout.
+
+Mantener intactos:
+
+* captura por pestaña;
+* volumen independiente;
+* Audio Processing ON/OFF;
+* volumen 0–200%;
+* Reset 100%;
+* Mute;
+* EQ ON/OFF;
+* 7 bandas;
+* rango ±12 dB;
+* Flat;
+* estado independiente por pestaña;
+* cleanup;
+* manejo de errores;
+* robustez de v0.2;
+* suavizado de parámetros;
+* seguridad auditiva.
+
+No cambiar frecuencias ni DSP.
+
+---
+
+# 3. Orientación horizontal
+
+Rediseñar el popup para que sea **más ancho que alto**.
+
+Objetivo aproximado:
+
+```text
+width: 620–700 px
+height: 420–500 px
+```
+
+No es obligatorio usar exactamente esas dimensiones si otro tamaño funciona mejor.
+
+El popup debe sentirse como un panel de audio compacto, no como una página vertical larga.
+
+Evitar scroll vertical en uso normal si es razonablemente posible.
+
+No debe existir scroll horizontal.
+
+---
+
+# 4. Layout general
+
+Usar una estructura aproximada como:
+
+```text
+┌────────────────────────────────────────────────────────────┐
+│ TAB AUDIO CONTROL                                   ● ON   │
+├───────────────────────┬────────────────────────────────────┤
+│ AUDIO                 │ EQUALIZER                          │
+│                       │                                    │
+│ Audio processing      │   +12                              │
+│ ON/OFF                │    │  │  │  │  │  │  │            │
+│                       │    │  │  │  │  │  │  │            │
+│ Volume 135%           │   0┼──┼──┼──┼──┼──┼──┼            │
+│ ───────────────       │    │  │  │  │  │  │  │            │
+│                       │  -12                              │
+│ Reset      Mute       │   30 90 300 1k 3k 8k 15k         │
+│                       │                                    │
+│ Status                │        [ Flat ]                   │
+└───────────────────────┴────────────────────────────────────┘
+```
+
+Este esquema es conceptual.
+
+Puedes mejorar la distribución si mantiene claridad y proporción.
+
+---
+
+# 5. Colores
+
+Adoptar una nueva identidad visual basada en:
+
+* fondos azules oscuros;
+* acentos rojos moderados;
+* texto blanco;
+* texto secundario gris azulado.
+
+Evitar:
+
+* rojo puro `#ff0000`;
+* azules saturados brillantes;
+* colores que cansen la vista.
+
+Paleta sugerida:
+
+```text
+Background principal:   #0b1626
+Paneles:                #122238
+Panel secundario:       #1a304b
+Acento rojo:            #d75b5b
+Texto principal:        #f4f7fb
+Texto secundario:       #a9b8ca
+Bordes:                 tonos azul grisáceo
+```
+
+Puedes ajustar ligeramente estos tonos para mejorar contraste y legibilidad.
+
+Mantener estética sobria, técnica y moderna.
+
+---
+
+# 6. Estados de color
+
+Usar rojo moderado como color de acento para:
+
+* sliders activos;
+* toggles activos;
+* botones seleccionados;
+* indicadores relevantes.
+
+No usar rojo como señal permanente de error si eso confunde con el color principal de la interfaz.
+
+Los errores pueden usar un tono distinto o una variante más oscura/clara.
+
+OFF debe seguir diferenciándose claramente de ON.
+
+---
+
+# 7. Tipografía
+
+Usar fuentes del sistema.
+
+No cargar fuentes externas.
+
+Mantener:
+
+* títulos claros;
+* labels legibles;
+* números importantes visibles;
+* buen contraste.
+
+No reducir demasiado el tamaño de texto para ganar espacio.
+
+---
+
+# 8. Ecualizador vertical
+
+Convertir las 7 bandas actuales a sliders verticales.
+
+Frecuencias:
+
+```text
+30 Hz
+90 Hz
+300 Hz
+1 kHz
+3 kHz
+8 kHz
+15 kHz
+```
+
+Mostrar las siete bandas alineadas horizontalmente.
+
+Conceptualmente:
+
+```text
+ +12
+
+  │    │    │    │    │    │    │
+  │    │    │    │    │    │    │
+  ●    │    │    │    │    │    │
+  │    ●    │    │    │    │    │
+  │    │    ●    │    │    │    │
+  │    │    │    ●    │    │    │
+  │    │    │    │    ●    │    │
+  │    │    │    │    │    ●    │
+  │    │    │    │    │    │    ●
+
+   0 dB
+
+ -12
+
+ 30   90   300   1k   3k   8k   15k
+```
+
+La representación exacta puede adaptarse al HTML/CSS.
+
+---
+
+# 9. Sentido de los sliders
+
+Comportamiento intuitivo:
+
+* arriba = gain positivo;
+* centro = 0 dB;
+* abajo = gain negativo.
+
+Visualmente debe quedar claro que:
+
+```text
+top    = +12 dB
+center = 0 dB
+bottom = -12 dB
+```
+
+Si `<input type="range">` requiere transformación CSS para orientación vertical, implementarlo de forma robusta.
+
+No alterar los valores internos del EQ.
+
+---
+
+# 10. Marcador de 0 dB
+
+El centro debe ser visualmente identificable.
+
+Puede existir:
+
+* una línea horizontal sutil;
+* una marca;
+* una etiqueta `0`;
+* o combinación de ellas.
+
+Debe ayudar a construir curvas visualmente.
+
+La banda de `1 kHz` debe quedar en el centro físico de las siete bandas.
+
+---
+
+# 11. Valores en dB
+
+Mostrar el valor actual de cada banda.
+
+Puede ubicarse:
+
+* encima del slider;
+* debajo del slider;
+* o cerca del thumb.
+
+Ejemplos:
+
+```text
++4
+0
+-3
+```
+
+Usar `dB` donde resulte claro sin saturar la interfaz.
+
+Mantener actualización en tiempo real.
+
+---
+
+# 12. Labels de frecuencia
+
+Mostrar debajo de cada fader:
+
+```text
+30
+90
+300
+1k
+3k
+8k
+15k
+```
+
+Puede aparecer `Hz` / `kHz` en encabezado o tooltip para mantener el diseño compacto.
+
+Debe ser inequívoco que representan frecuencias.
+
+---
+
+# 13. EQ ON/OFF
+
+Mantener toggle independiente.
+
+El encabezado de EQ debe mostrar claramente:
+
+```text
+EQUALIZER       ON/OFF
+```
+
+Cuando EQ está OFF:
+
+* sliders pueden quedar visualmente atenuados;
+* valores permanecen visibles;
+* interacción deshabilitada;
+* curva almacenada se conserva.
+
+Cuando EQ vuelve ON:
+
+* recuperar los valores anteriores.
+
+---
+
+# 14. Flat
+
+Mantener botón `Flat`.
+
+Ubicarlo de forma clara dentro del panel EQ.
+
+No cambiar su comportamiento.
+
+Debe seguir:
+
+* poniendo todas las bandas en 0;
+* manteniendo EQ ON;
+* sin afectar volumen ni mute.
+
+---
+
+# 15. Panel Audio
+
+Mantener una sección compacta para:
+
+* Audio Processing ON/OFF;
+* Volume;
+* porcentaje actual;
+* slider volumen;
+* Reset 100%;
+* Mute;
+* estado.
+
+Esta sección puede ocupar aproximadamente 30–40% del ancho total.
+
+El EQ puede ocupar el resto.
+
+---
+
+# 16. Slider de volumen
+
+Mantenerlo horizontal.
+
+Debe conservar:
+
+* 0–200%;
+* marca visible en 100%;
+* actualización en tiempo real;
+* transiciones suaves.
+
+Usar la nueva paleta visual.
+
+---
+
+# 17. Toggles
+
+Unificar diseño visual de:
+
+* Audio Processing;
+* Equalizer.
+
+ON:
+
+* acento rojo moderado;
+* contraste claro.
+
+OFF:
+
+* tono azul/gris discreto.
+
+No usar verdes salvo que exista una razón fuerte.
+
+La interfaz final debe respetar identidad azul / rojo / blanco.
+
+---
+
+# 18. Botones
+
+Rediseñar visualmente:
+
+* Reset 100%;
+* Mute;
+* Flat.
+
+Mantener buen tamaño de click.
+
+No hacer botones excesivamente pequeños.
+
+Usar estados:
+
+* hover;
+* active;
+* disabled;
+
+coherentes con la nueva paleta.
+
+---
+
+# 19. Responsive interno
+
+Aunque el popup tenga un tamaño relativamente fijo, usar CSS robusto.
+
+Evitar:
+
+* textos cortados;
+* elementos fuera de paneles;
+* sliders superpuestos;
+* deformaciones si Chrome ajusta ligeramente el popup.
+
+Usar Grid o Flexbox donde resulte apropiado.
+
+---
+
+# 20. Accesibilidad
+
+Mantener o mejorar:
+
+* `aria-label`;
+* `aria-live`;
+* `aria-pressed`;
+* `role="switch"`;
+* focus visible;
+* navegación por teclado cuando sea posible.
+
+No eliminar accesibilidad existente durante el rediseño.
+
+---
+
+# 21. Funcionalidad intacta
+
+Muy importante:
+
+No modificar innecesariamente:
+
+* `audio/offscreen.js`;
+* `background/service-worker.js`;
+
+si la funcionalidad actual ya soporta la nueva UI.
+
+Preferir cambios en:
+
+* `popup.html`;
+* `popup.css`;
+* `popup.js`;
+
+Si necesitas cambios menores en mensajería, mantenerlos mínimos y documentados.
+
+No refactorizar el motor DSP solo por el rediseño.
+
+---
+
+# 22. Bug de controles deshabilitados
+
+Mantener la corrección o protección existente relacionada con `busy` / `eqBusy`.
+
+Verificar especialmente que con la nueva UI:
+
+* volumen no quede bloqueado después de usar EQ;
+* EQ no quede bloqueado después de usar volumen;
+* toggles recuperen estado después de operaciones;
+* errores liberen estados transitorios.
+
+---
+
+# 23. No agregar Spectrum Analyzer todavía
+
+NO implementar en esta versión:
+
+* AnalyserNode;
+* FFT;
+* canvas;
+* visualizador;
+* animaciones de espectro.
+
+Dejar espacio conceptual para incorporarlo posteriormente, pero no reservar un bloque grande vacío en la interfaz.
+
+El analizador se implementará en una versión futura.
+
+---
+
+# 24. No agregar presets todavía
+
+NO agregar:
+
+* presets de fábrica;
+* presets personalizados;
+* guardar;
+* borrar;
+* renombrar;
+* `chrome.storage`.
+
+Eso será una versión posterior.
+
+---
+
+# 25. Permisos
+
+No agregar permisos.
+
+Mantener exclusivamente:
+
+```text
+offscreen
+tabCapture
+```
+
+---
+
+# 26. Privacidad
+
+Mantener intacta la política actual:
+
+* sin red;
+* sin analytics;
+* sin telemetry;
+* sin scripts externos;
+* sin contenido de páginas;
+* sin historial;
+* sin cookies.
+
+---
+
+# 27. Manifest
+
+Actualizar versión a:
+
+`0.4.0`
+
+Mantener:
+
+```text
+minimum_chrome_version: 116
+```
+
+No cambiar permisos ni nombre.
+
+---
+
+# 28. README
+
+Actualizar brevemente a v0.4.
+
+Mencionar:
+
+* nuevo layout horizontal;
+* EQ vertical de 7 bandas;
+* nueva identidad azul / rojo / blanco;
+* funciones de audio existentes sin cambios.
+
+No hacer README excesivamente largo.
+
+---
+
+# 29. Pruebas visuales
+
+Revisar:
+
+### A. Popup
+
+Debe abrir horizontal, limpio y sin scroll horizontal.
+
+### B. EQ Flat
+
+Todos los faders en centro.
+
+La línea de 0 dB debe alinearse correctamente.
+
+### C. Curva V
+
+Configurar manualmente:
+
+```text
+30 Hz   +4
+90 Hz   +3
+300 Hz  -1
+1 kHz   -3
+3 kHz   -1
+8 kHz   +2
+15 kHz  +4
+```
+
+La forma de V debe ser visualmente fácil de interpretar.
+
+### D. Extremos
+
++12 y -12 deben verse correctamente sin desbordes.
+
+### E. EQ OFF
+
+Sliders atenuados/deshabilitados pero legibles.
+
+### F. Audio OFF
+
+Toda la sección de audio correspondiente debe reflejar correctamente el estado.
+
+### G. Popup reopen
+
+Cerrar y reabrir.
+
+Todos los valores deben mostrarse donde corresponden.
+
+---
+
+# 30. Pruebas funcionales
+
+Confirmar que el rediseño no rompe:
+
+* ON/OFF;
+* volumen;
+* Reset;
+* Mute;
+* EQ;
+* Flat;
+* sliders en tiempo real;
+* independencia por pestaña;
+* cleanup;
+* manejo de páginas protegidas.
+
+---
+
+# 31. Al finalizar
+
+Devuélveme un resumen breve indicando:
+
+* archivos modificados;
+* confirmación del backup `old_versions/v0.3.1/`;
+* dimensiones finales aproximadas del popup;
+* layout utilizado;
+* paleta final;
+* cómo se implementaron sliders verticales;
+* cómo se marcó 0 dB;
+* confirmación de que el motor de audio no fue modificado innecesariamente;
+* confirmación de que permisos siguen siendo `offscreen` y `tabCapture`;
+* pasos concretos para probar manualmente la v0.4 en Chrome.

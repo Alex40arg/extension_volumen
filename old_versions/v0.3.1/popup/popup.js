@@ -64,7 +64,6 @@ function render(state = currentState) {
   elements.processingToggle.disabled = busy || currentTabId === null;
   elements.audioControls.disabled = busy || !currentState.enabled;
   elements.volumeSlider.value = String(currentState.volume);
-  elements.volumeSlider.setAttribute("aria-valuetext", `${currentState.volume}%`);
   elements.volumeOutput.value = `${currentState.volume}%`;
   elements.volumeOutput.textContent = `${currentState.volume}%`;
   elements.muteButton.setAttribute("aria-pressed", String(currentState.muted));
@@ -76,7 +75,6 @@ function render(state = currentState) {
   elements.equalizerBands.forEach((slider, index) => {
     const gain = currentState.eqGains[index];
     slider.value = String(gain);
-    slider.setAttribute("aria-valuetext", formatDb(gain));
     const output = slider.parentElement.querySelector("output");
     output.value = formatDb(gain);
     output.textContent = formatDb(gain);
@@ -226,7 +224,6 @@ elements.volumeSlider.addEventListener("input", () => {
   const volume = Number(elements.volumeSlider.value);
   elements.volumeOutput.value = `${volume}%`;
   elements.volumeOutput.textContent = `${volume}%`;
-  elements.volumeSlider.setAttribute("aria-valuetext", `${volume}%`);
   void setVolume(volume);
 });
 
@@ -262,7 +259,6 @@ elements.equalizerBands.forEach((slider) => {
     const output = slider.parentElement.querySelector("output");
     output.value = formatDb(gain);
     output.textContent = formatDb(gain);
-    slider.setAttribute("aria-valuetext", formatDb(gain));
     void setEqBand(bandIndex, gain);
   });
 });

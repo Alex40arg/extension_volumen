@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Tab Audio Control</title>
+    <link rel="stylesheet" href="popup.css">
+  </head>
+  <body>
+    <main class="panel" aria-labelledby="extension-title">
+      <header class="header">
+        <div>
+          <p class="eyebrow">PER-TAB VOLUME</p>
+          <h1 id="extension-title">Tab Audio Control</h1>
+        </div>
+        <span id="state-badge" class="badge badge-off">OFF</span>
+      </header>
+
+      <section class="processing-row" aria-labelledby="processing-label">
+        <div>
+          <h2 id="processing-label">Audio processing</h2>
+          <p>Current tab only</p>
+        </div>
+        <label class="switch">
+          <input id="processing-toggle" type="checkbox" role="switch" aria-labelledby="processing-label">
+          <span class="switch-track" aria-hidden="true"></span>
+        </label>
+      </section>
+
+      <fieldset id="audio-controls" class="audio-controls" disabled>
+        <legend class="sr-only">Audio controls</legend>
+        <div class="volume-heading">
+          <label for="volume-slider">Volume</label>
+          <output id="volume-output" for="volume-slider">100%</output>
+        </div>
+        <input id="volume-slider" class="volume-slider" type="range" min="0" max="200" step="5" value="100">
+        <div class="scale" aria-hidden="true">
+          <span>0%</span>
+          <span class="normal-level">100%</span>
+          <span>200%</span>
+        </div>
+        <div class="button-row">
+          <button id="reset-button" type="button">Reset 100%</button>
+          <button id="mute-button" type="button" aria-pressed="false">Mute</button>
+        </div>
+      </fieldset>
+
+      <section class="equalizer" aria-labelledby="equalizer-label">
+        <div class="equalizer-heading">
+          <div>
+            <p class="section-eyebrow">EQUALIZER</p>
+            <h2 id="equalizer-label">7-band EQ</h2>
+          </div>
+          <div class="equalizer-switch">
+            <span id="equalizer-state">OFF</span>
+            <label class="switch">
+              <input id="equalizer-toggle" type="checkbox" role="switch" aria-labelledby="equalizer-label" disabled>
+              <span class="switch-track" aria-hidden="true"></span>
+            </label>
+          </div>
+        </div>
+
+        <fieldset id="equalizer-controls" class="equalizer-controls" disabled>
+          <legend class="sr-only">Equalizer bands</legend>
+          <div class="eq-band">
+            <label for="eq-band-0">30 Hz</label>
+            <input id="eq-band-0" data-eq-band="0" type="range" min="-12" max="12" step="1" value="0">
+            <output for="eq-band-0">0 dB</output>
+          </div>
+          <div class="eq-band">
+            <label for="eq-band-1">90 Hz</label>
+            <input id="eq-band-1" data-eq-band="1" type="range" min="-12" max="12" step="1" value="0">
+            <output for="eq-band-1">0 dB</output>
+          </div>
+          <div class="eq-band">
+            <label for="eq-band-2">300 Hz</label>
+            <input id="eq-band-2" data-eq-band="2" type="range" min="-12" max="12" step="1" value="0">
+            <output for="eq-band-2">0 dB</output>
+          </div>
+          <div class="eq-band">
+            <label for="eq-band-3">1 kHz</label>
+            <input id="eq-band-3" data-eq-band="3" type="range" min="-12" max="12" step="1" value="0">
+            <output for="eq-band-3">0 dB</output>
+          </div>
+          <div class="eq-band">
+            <label for="eq-band-4">3 kHz</label>
+            <input id="eq-band-4" data-eq-band="4" type="range" min="-12" max="12" step="1" value="0">
+            <output for="eq-band-4">0 dB</output>
+          </div>
+          <div class="eq-band">
+            <label for="eq-band-5">8 kHz</label>
+            <input id="eq-band-5" data-eq-band="5" type="range" min="-12" max="12" step="1" value="0">
+            <output for="eq-band-5">0 dB</output>
+          </div>
+          <div class="eq-band">
+            <label for="eq-band-6">15 kHz</label>
+            <input id="eq-band-6" data-eq-band="6" type="range" min="-12" max="12" step="1" value="0">
+            <output for="eq-band-6">0 dB</output>
+          </div>
+          <button id="flat-button" class="flat-button" type="button">Flat</button>
+        </fieldset>
+      </section>
+
+      <div id="status" class="status status-off" role="status" aria-live="polite">
+        <span class="status-dot" aria-hidden="true"></span>
+        <span id="status-text">Not active on this tab</span>
+      </div>
+      <p id="message" class="message" role="alert" aria-live="assertive" hidden></p>
+    </main>
+
+    <script src="popup.js"></script>
+  </body>
+</html>

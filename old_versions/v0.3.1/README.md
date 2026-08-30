@@ -2,7 +2,7 @@
 
 Extensión local de Chrome para controlar de forma independiente el volumen de la pestaña actual.
 
-**Estado actual:** v0.4
+**Estado actual:** v0.3.1
 
 ## Funciones
 
@@ -19,8 +19,6 @@ Extensión local de Chrome para controlar de forma independiente el volumen de l
 - Ecualizador gráfico de 7 bandas (30 Hz, 90 Hz, 300 Hz, 1 kHz, 3 kHz, 8 kHz y 15 kHz), independiente por pestaña.
 - Ajuste de cada banda entre -12 dB y +12 dB, con actualización en tiempo real y botón **Flat**.
 - EQ OFF y curva plana por defecto para una activación segura.
-- Nuevo popup horizontal con ecualizador de siete faders verticales.
-- Identidad visual sobria en azul oscuro, rojo moderado y blanco.
 
 ## Privacidad y permisos
 
@@ -29,7 +27,7 @@ Todo el procesamiento ocurre localmente. La extensión no lee páginas, historia
 - `tabCapture`: obtiene el audio de una pestaña solamente después de la activación explícita del usuario.
 - `offscreen`: mantiene el motor Web Audio activo fuera del popup.
 
-No utiliza permisos de host ni dependencias externas. v0.4 mantiene exactamente
+No utiliza permisos de host ni dependencias externas. v0.3.1 mantiene exactamente
 los permisos mínimos de la versión anterior y no agrega conexiones externas.
 
 ## Instalación local
@@ -50,7 +48,7 @@ los permisos mínimos de la versión anterior y no agrega conexiones externas.
 6. Repite en otra pestaña para comprobar que conserva volumen y EQ independientes.
 7. Desactiva el procesamiento para devolver el audio al control normal de Chrome.
 
-## Limitaciones de v0.4
+## Limitaciones de v0.3.1
 
 - Requiere Chrome 116 o posterior.
 - Chrome no permite capturar páginas internas, la Chrome Web Store y algunas páginas protegidas.
