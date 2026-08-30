@@ -4,8 +4,7 @@ const DEFAULT_STATE = Object.freeze({
   volume: 100,
   muted: false,
   eqEnabled: false,
-  eqGains: Object.freeze(Array(EQ_BAND_COUNT).fill(0)),
-  selectedPreset: "Flat"
+  eqGains: Object.freeze(Array(EQ_BAND_COUNT).fill(0))
 });
 
 const elements = {
@@ -19,7 +18,6 @@ const elements = {
   equalizerState: document.querySelector("#equalizer-state"),
   equalizerControls: document.querySelector("#equalizer-controls"),
   equalizerBands: [...document.querySelectorAll("[data-eq-band]")],
-  presetSelect: document.querySelector("#preset-select"),
   flatButton: document.querySelector("#flat-button"),
   stateBadge: document.querySelector("#state-badge"),
   status: document.querySelector("#status"),
@@ -59,8 +57,7 @@ function render(state = currentState) {
     volume: Number.isFinite(state.volume) ? state.volume : 100,
     muted: Boolean(state.muted),
     eqEnabled: Boolean(state.eqEnabled),
-    eqGains: normalizedEqGains(state.eqGains),
-    selectedPreset: typeof state.selectedPreset === "string" ? state.selectedPreset : "Flat"
+    eqGains: normalizedEqGains(state.eqGains)
   };
 
   elements.processingToggle.checked = currentState.enabled;
@@ -76,7 +73,6 @@ function render(state = currentState) {
   elements.equalizerToggle.disabled = busy || eqBusy || !currentState.enabled;
   elements.equalizerState.textContent = currentState.eqEnabled ? "ON" : "OFF";
   elements.equalizerControls.disabled = busy || eqBusy || !currentState.enabled || !currentState.eqEnabled;
-  elements.presetSelect.value = currentState.selectedPreset;
   elements.equalizerBands.forEach((slider, index) => {
     const gain = currentState.eqGains[index];
     slider.value = String(gain);
@@ -124,10 +120,14 @@ async function setProcessing(enabled) {
   try {
     currentState = await sendCommand(enabled ? "ENABLE" : "DISABLE");
   } catch (error) {
-    try {
-      currentState = await sendCommand("GET_STATE");
-    } catch {
+    if (enabled) {
       currentState = { ...DEFAULT_STATE };
+    } else {
+      try {
+        currentState = await sendCommand("GET_STATE");
+      } catch {
+        currentState = { ...DEFAULT_STATE };
+      }
     }
     showMessage(error.message);
   } finally {
@@ -189,17 +189,13 @@ async function setEqBand(bandIndex, gain) {
 }
 
 async function setFlatEqualizer() {
-  return applyEqualizerPreset("Flat");
-}
-
-async function applyEqualizerPreset(preset) {
   eqRequestNumber += 1;
   eqBusy = true;
   showMessage();
   render();
 
   try {
-    currentState = await sendCommand("APPLY_EQ_PRESET", { preset });
+    currentState = await sendCommand("FLAT_EQ");
   } catch (error) {
     showMessage(error.message);
     await refreshState();
@@ -262,17 +258,13 @@ elements.equalizerBands.forEach((slider) => {
     const gain = Number(slider.value);
     const eqGains = [...currentState.eqGains];
     eqGains[bandIndex] = gain;
-    currentState = { ...currentState, eqGains, selectedPreset: "Custom" };
+    currentState = { ...currentState, eqGains };
     const output = slider.parentElement.querySelector("output");
     output.value = formatDb(gain);
     output.textContent = formatDb(gain);
     slider.setAttribute("aria-valuetext", formatDb(gain));
     void setEqBand(bandIndex, gain);
   });
-});
-
-elements.presetSelect.addEventListener("change", () => {
-  void applyEqualizerPreset(elements.presetSelect.value);
 });
 
 elements.flatButton.addEventListener("click", () => {

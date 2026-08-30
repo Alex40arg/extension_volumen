@@ -4,8 +4,7 @@ const DEFAULT_STATE = Object.freeze({
   volume: 100,
   muted: false,
   eqEnabled: false,
-  eqGains: Object.freeze(Array(7).fill(0)),
-  selectedPreset: "Flat"
+  eqGains: Object.freeze(Array(7).fill(0))
 });
 const PROTECTED_TAB_MESSAGE = "This tab cannot be controlled.";
 const START_FAILURE_MESSAGE = "Unable to start audio processing.";
@@ -143,7 +142,7 @@ async function disable(tabId) {
   }
 
   const response = await sendToAudioEngine("STOP_SESSION", { tabId });
-  return response.state;
+  return { ...DEFAULT_STATE };
 }
 
 async function updateSession(type, tabId, data) {
@@ -179,14 +178,8 @@ async function handlePopupMessage(message) {
         bandIndex: message.bandIndex,
         gain: message.gain
       }));
-    case "APPLY_EQ_PRESET":
-      return enqueueForTab(tabId, () => updateSession("APPLY_EQ_PRESET", tabId, {
-        preset: message.preset
-      }));
     case "FLAT_EQ":
-      return enqueueForTab(tabId, () => updateSession("APPLY_EQ_PRESET", tabId, {
-        preset: "Flat"
-      }));
+      return enqueueForTab(tabId, () => updateSession("FLAT_EQ", tabId));
     default:
       throw new Error("Unknown extension request.");
   }
@@ -223,7 +216,7 @@ chrome.tabs.onRemoved.addListener((tabId) => {
       return;
     }
 
-    await sendToAudioEngine("DELETE_TAB", { tabId });
+    await sendToAudioEngine("STOP_SESSION", { tabId });
   }).catch((error) => {
     console.warn(`Tab Audio Control: cleanup failed for closed tab ${tabId}.`, error);
   });

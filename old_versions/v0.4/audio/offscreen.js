@@ -10,46 +10,26 @@ const EQ_BANDS = Object.freeze([
   Object.freeze({ frequency: 15000, type: "highshelf" })
 ]);
 const DEFAULT_EQ_GAINS = Object.freeze(EQ_BANDS.map(() => 0));
-const EQ_PRESETS = Object.freeze({
-  Flat: Object.freeze([0, 0, 0, 0, 0, 0, 0]),
-  "Soft V": Object.freeze([4, 3, -1, -3, -1, 2, 4]),
-  Bass: Object.freeze([6, 5, 2, 0, -1, 0, 0]),
-  Voice: Object.freeze([-4, -2, 0, 3, 4, 1, -1]),
-  Treble: Object.freeze([-1, 0, 0, 0, 2, 5, 6])
+const DEFAULT_STATE = Object.freeze({
+  enabled: false,
+  volume: 100,
+  muted: false,
+  eqEnabled: false,
+  eqGains: DEFAULT_EQ_GAINS
 });
 const PARAM_RAMP_SECONDS = 0.02;
 const sessions = new Map();
-const tabSettings = new Map();
 
-function defaultSettings() {
-  return {
-    eqEnabled: false,
-    eqGains: [...DEFAULT_EQ_GAINS],
-    selectedPreset: "Flat"
-  };
-}
-
-function getSettings(tabId, create = false) {
-  let settings = tabSettings.get(tabId);
-  if (!settings && create) {
-    settings = defaultSettings();
-    tabSettings.set(tabId, settings);
-  }
-  return settings || defaultSettings();
-}
-
-function publicState(tabId) {
-  const session = sessions.get(tabId);
-  const settings = getSettings(tabId);
-  return {
-    enabled: Boolean(session),
-    // Session-only controls deliberately reset whenever processing stops.
-    volume: session?.volume ?? 100,
-    muted: session?.muted ?? false,
-    eqEnabled: settings.eqEnabled,
-    eqGains: [...settings.eqGains],
-    selectedPreset: settings.selectedPreset
-  };
+function publicState(session) {
+  return session
+    ? {
+        enabled: true,
+        volume: session.volume,
+        muted: session.muted,
+        eqEnabled: session.eqEnabled,
+        eqGains: [...session.eqGains]
+      }
+    : { ...DEFAULT_STATE, eqGains: [...DEFAULT_EQ_GAINS] };
 }
 
 function requireSession(tabId) {
@@ -82,9 +62,8 @@ function applyGain(session) {
 }
 
 function applyEq(session) {
-  const settings = getSettings(session.tabId);
   session.eqFilters.forEach((filter, index) => {
-    const effectiveGain = settings.eqEnabled ? settings.eqGains[index] : 0;
+    const effectiveGain = session.eqEnabled ? session.eqGains[index] : 0;
     rampAudioParam(filter.gain, effectiveGain, session.audioContext);
   });
 }
@@ -147,10 +126,8 @@ async function destroySession(tabId, notify = false) {
 
 async function startSession(tabId, streamId) {
   if (sessions.has(tabId)) {
-    return publicState(tabId);
+    return publicState(sessions.get(tabId));
   }
-
-  getSettings(tabId, true);
 
   let stream = null;
   let audioContext = null;
@@ -202,7 +179,6 @@ async function startSession(tabId, streamId) {
       });
     };
     const session = {
-      tabId,
       stream,
       audioContext,
       sourceNode,
@@ -210,10 +186,11 @@ async function startSession(tabId, streamId) {
       gainNode,
       volume: 100,
       muted: false,
+      eqEnabled: false,
+      eqGains: [...DEFAULT_EQ_GAINS],
       handleTrackEnded
     };
     sessions.set(tabId, session);
-    applyEq(session);
 
     for (const track of stream.getTracks()) {
       track.addEventListener("ended", handleTrackEnded);
@@ -229,7 +206,7 @@ async function startSession(tabId, streamId) {
       throw new Error("The captured stream ended during initialization.");
     }
 
-    return publicState(tabId);
+    return publicState(session);
   } catch (error) {
     disconnectNode(sourceNode, "partial source node");
     eqFilters.forEach((filter, index) => disconnectNode(filter, `partial EQ band ${index + 1}`));
@@ -263,7 +240,7 @@ function setVolume(tabId, value) {
   const session = requireSession(tabId);
   session.volume = volume;
   applyGain(session);
-  return publicState(tabId);
+  return publicState(session);
 }
 
 function setMuted(tabId, value) {
@@ -274,7 +251,7 @@ function setMuted(tabId, value) {
   const session = requireSession(tabId);
   session.muted = value;
   applyGain(session);
-  return publicState(tabId);
+  return publicState(session);
 }
 
 function setEqEnabled(tabId, value) {
@@ -283,10 +260,9 @@ function setEqEnabled(tabId, value) {
   }
 
   const session = requireSession(tabId);
-  const settings = getSettings(tabId, true);
-  settings.eqEnabled = value;
+  session.eqEnabled = value;
   applyEq(session);
-  return publicState(tabId);
+  return publicState(session);
 }
 
 function setEqBand(tabId, bandIndexValue, gainValue) {
@@ -300,25 +276,17 @@ function setEqBand(tabId, bandIndexValue, gainValue) {
   }
 
   const session = requireSession(tabId);
-  const settings = getSettings(tabId, true);
-  settings.eqGains[bandIndex] = gain;
-  settings.selectedPreset = "Custom";
-  const effectiveGain = settings.eqEnabled ? gain : 0;
+  session.eqGains[bandIndex] = gain;
+  const effectiveGain = session.eqEnabled ? gain : 0;
   rampAudioParam(session.eqFilters[bandIndex].gain, effectiveGain, session.audioContext);
-  return publicState(tabId);
+  return publicState(session);
 }
 
-function applyEqPreset(tabId, preset) {
-  if (!Object.hasOwn(EQ_PRESETS, preset)) {
-    throw new Error("A valid factory equalizer preset is required.");
-  }
-
+function setFlatEq(tabId) {
   const session = requireSession(tabId);
-  const settings = getSettings(tabId, true);
-  settings.eqGains = [...EQ_PRESETS[preset]];
-  settings.selectedPreset = preset;
+  session.eqGains.fill(0);
   applyEq(session);
-  return publicState(tabId);
+  return publicState(session);
 }
 
 async function handleMessage(message) {
@@ -330,16 +298,12 @@ async function handleMessage(message) {
     case "PING":
       return {};
     case "GET_STATE":
-      return { state: publicState(message.tabId) };
+      return { state: publicState(sessions.get(message.tabId)) };
     case "START_SESSION":
       return { state: await startSession(message.tabId, message.streamId) };
     case "STOP_SESSION":
       await destroySession(message.tabId);
-      return { state: publicState(message.tabId), sessionCount: sessions.size };
-    case "DELETE_TAB":
-      await destroySession(message.tabId);
-      tabSettings.delete(message.tabId);
-      return { state: publicState(message.tabId), sessionCount: sessions.size };
+      return { state: { ...DEFAULT_STATE }, sessionCount: sessions.size };
     case "SET_VOLUME":
       return { state: setVolume(message.tabId, message.volume) };
     case "SET_MUTED":
@@ -348,8 +312,8 @@ async function handleMessage(message) {
       return { state: setEqEnabled(message.tabId, message.eqEnabled) };
     case "SET_EQ_BAND":
       return { state: setEqBand(message.tabId, message.bandIndex, message.gain) };
-    case "APPLY_EQ_PRESET":
-      return { state: applyEqPreset(message.tabId, message.preset) };
+    case "FLAT_EQ":
+      return { state: setFlatEq(message.tabId) };
     case "GET_SESSION_COUNT":
       return { sessionCount: sessions.size };
     default:
