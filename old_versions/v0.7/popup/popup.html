@@ -13,7 +13,6 @@
           <p class="eyebrow">PER-TAB AUDIO CONSOLE</p>
           <h1 id="extension-title">Tab Audio Control</h1>
         </div>
-        <p id="preset-message" class="preset-message" role="status" aria-live="polite" hidden></p>
         <div class="header-state" aria-label="Current processing state">
           <span class="header-state-dot" aria-hidden="true"></span>
           <span id="state-badge" class="badge badge-off">OFF</span>
@@ -58,19 +57,10 @@
             </div>
           </fieldset>
 
-          <form id="preset-editor" class="preset-editor" aria-labelledby="preset-editor-title" hidden>
-            <p id="preset-editor-title"></p>
-            <div id="preset-name-row" class="preset-name-row">
-              <label for="preset-name">Name</label>
-              <input id="preset-name" type="text" maxlength="30" autocomplete="off" aria-describedby="preset-message">
-            </div>
-            <div class="preset-actions">
-              <button id="confirm-preset" type="submit">Save</button>
-              <button id="cancel-preset" type="button">Cancel</button>
-            </div>
-          </form>
-
-          <p id="message" class="message" role="alert" aria-live="assertive" hidden></p>
+          <div id="status" class="status status-off" role="status" aria-live="polite">
+            <span class="status-dot" aria-hidden="true"></span>
+            <span id="status-text">Not active on this tab</span>
+          </div>
         </section>
 
         <section class="equalizer" aria-labelledby="equalizer-label">
@@ -151,6 +141,18 @@
                 <button id="delete-preset" type="button" disabled>Delete</button>
               </div>
             </div>
+            <form id="preset-editor" class="preset-editor" aria-labelledby="preset-editor-title" hidden>
+              <p id="preset-editor-title"></p>
+              <div id="preset-name-row" class="preset-name-row">
+                <label for="preset-name">Name</label>
+                <input id="preset-name" type="text" maxlength="30" autocomplete="off" aria-describedby="preset-message">
+              </div>
+              <div class="preset-actions">
+                <button id="confirm-preset" type="submit">Save</button>
+                <button id="cancel-preset" type="button">Cancel</button>
+              </div>
+            </form>
+            <p id="preset-message" class="preset-message" role="status" aria-live="polite" hidden></p>
         </section>
       </div>
 
@@ -169,6 +171,7 @@
         <canvas id="spectrum-canvas" role="img" aria-label="Live audio spectrum from 30 Hz to 15 kHz, after EQ and before master volume" aria-describedby="spectrum-status"></canvas>
       </section>
 
+      <p id="message" class="message" role="alert" aria-live="assertive" hidden></p>
     </main>
 
     <script src="../shared/presets.js"></script>

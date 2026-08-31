@@ -3,7 +3,6 @@
   font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   color: #f4f7fb;
   background: #0b1626;
-  --eq-fader-height: 144px;
 }
 
 * { box-sizing: border-box; user-select: none; }
@@ -12,7 +11,7 @@ input[type="text"], textarea, [contenteditable="true"] { user-select: text; }
 
 body {
   width: 680px;
-  min-height: 580px;
+  min-height: 450px;
   margin: 0;
   overflow-x: hidden;
   background: #0b1626;
@@ -20,7 +19,7 @@ body {
 
 button, input, select { font: inherit; }
 
-.panel { padding: 12px; }
+.panel { padding: 16px; }
 
 .header,
 .header-state,
@@ -28,6 +27,7 @@ button, input, select { font: inherit; }
 .processing-row,
 .volume-heading,
 .button-row,
+.status,
 .equalizer-heading,
 .equalizer-switch,
 .eq-footer {
@@ -37,9 +37,8 @@ button, input, select { font: inherit; }
 
 .header {
   justify-content: space-between;
-  gap: 12px;
-  min-height: 42px;
-  margin-bottom: 8px;
+  min-height: 52px;
+  margin-bottom: 12px;
   padding: 0 4px;
 }
 
@@ -64,9 +63,10 @@ h1 {
 h2 { margin-bottom: 0; font-size: 15px; }
 h3 { margin-bottom: 3px; font-size: 13px; }
 
-.header-state { flex: 0 0 auto; gap: 8px; }
+.header-state { gap: 8px; }
 
-.header-state-dot {
+.header-state-dot,
+.status-dot {
   flex: 0 0 auto;
   width: 8px;
   height: 8px;
@@ -98,29 +98,29 @@ h3 { margin-bottom: 3px; font-size: 13px; }
 .audio-panel,
 .equalizer {
   min-width: 0;
-  min-height: 330px;
+  min-height: 354px;
   border: 1px solid #29435f;
   border-radius: 14px;
   background: #122238;
   box-shadow: 0 10px 28px rgb(2 9 18 / 22%);
 }
 
-.audio-panel { display: flex; flex-direction: column; padding: 12px; }
-.equalizer { padding: 12px 14px 10px; }
+.audio-panel { display: flex; flex-direction: column; padding: 15px; }
+.equalizer { padding: 15px 16px 13px; }
 
 .panel-heading,
 .equalizer-heading {
   justify-content: space-between;
   min-height: 36px;
-  padding-bottom: 8px;
+  padding-bottom: 11px;
   border-bottom: 1px solid #29435f;
 }
 
 .processing-row {
   justify-content: space-between;
-  gap: 10px;
-  margin-top: 10px;
-  padding: 7px 10px;
+  gap: 16px;
+  margin-top: 14px;
+  padding: 11px 12px;
   border: 1px solid #2d4966;
   border-radius: 10px;
   background: #1a304b;
@@ -185,7 +185,7 @@ input[type="range"]:focus-visible {
 
 .audio-controls {
   min-width: 0;
-  margin: 8px 0 0;
+  margin: 14px 0 12px;
   padding: 0;
   border: 0;
 }
@@ -194,7 +194,7 @@ input[type="range"]:focus-visible {
 
 .volume-heading {
   justify-content: space-between;
-  margin-bottom: 6px;
+  margin-bottom: 12px;
   font-size: 12px;
   font-weight: 700;
 }
@@ -207,8 +207,6 @@ input[type="range"]:focus-visible {
 }
 
 .volume-slider {
-  display: block;
-  margin: 0;
   width: 100%;
   accent-color: #d75b5b;
   cursor: pointer;
@@ -219,7 +217,7 @@ input[type="range"]:focus-visible {
 .scale {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  margin-top: 3px;
+  margin-top: 5px;
   color: #8fa2b7;
   font-size: 10px;
 }
@@ -228,10 +226,10 @@ input[type="range"]:focus-visible {
 .scale span:last-child { text-align: right; }
 .normal-level { color: #dce5ef; font-weight: 800; }
 
-.button-row { gap: 8px; margin-top: 8px; }
+.button-row { gap: 8px; margin-top: 17px; }
 
 button {
-  min-height: 35px;
+  min-height: 37px;
   border: 1px solid #3b5876;
   border-radius: 8px;
   color: #f4f7fb;
@@ -248,6 +246,25 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
 
 #mute-button[aria-pressed="true"] { border-color: #e06c6c; color: #fff; background: #a83f47; }
 
+.status {
+  gap: 9px;
+  min-height: 42px;
+  margin-top: auto;
+  padding: 10px 11px;
+  border: 1px solid #2d4966;
+  border-radius: 9px;
+  color: #a9b8ca;
+  background: #0f1e31;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.status-on { border-color: #744751; color: #f3c8c8; background: #291d29; }
+.status-on .status-dot { background: #e06c6c; box-shadow: 0 0 0 3px rgb(215 91 91 / 17%); }
+.status-error { border-color: #b17442; color: #ffd5a9; background: #352519; }
+.status-error .status-dot { background: #e5a15f; box-shadow: 0 0 0 3px rgb(229 161 95 / 16%); }
+
 .equalizer-switch { gap: 9px; }
 
 #equalizer-state,
@@ -262,7 +279,7 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
 .equalizer-controls {
   min-width: 0;
   margin: 0;
-  padding: 9px 0 0;
+  padding: 13px 0 0;
   border: 0;
 }
 
@@ -279,7 +296,7 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  height: var(--eq-fader-height);
+  height: 186px;
   margin-top: 25px;
   padding: 0 0 1px;
   color: #8fa2b7;
@@ -299,7 +316,7 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
 .zero-line {
   position: absolute;
   z-index: 0;
-  top: calc(24px + var(--eq-fader-height) / 2);
+  top: 117px;
   right: 4px;
   left: 4px;
   height: 1px;
@@ -312,7 +329,7 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
   position: relative;
   z-index: 1;
   display: grid;
-  grid-template-rows: 24px var(--eq-fader-height) 23px;
+  grid-template-rows: 24px 186px 23px;
   justify-items: center;
   min-width: 0;
 }
@@ -327,7 +344,7 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
 
 .eq-band input[type="range"] {
   width: 20px;
-  height: var(--eq-fader-height);
+  height: 186px;
   margin: 0;
   accent-color: #d75b5b;
   cursor: pointer;
@@ -350,9 +367,9 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
   flex-direction: column;
   align-items: stretch;
   justify-content: space-between;
-  gap: 6px;
-  margin: 4px 0 0 33px;
-  padding-top: 6px;
+  gap: 8px;
+  margin: 6px 0 0 33px;
+  padding-top: 9px;
   border-top: 1px solid #29435f;
   color: #8fa2b7;
   font-size: 9px;
@@ -401,19 +418,19 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
 
 .preset-actions { display: flex; gap: 6px; }
 .preset-actions button { flex: 1; min-width: 0; min-height: 30px; padding: 0 8px; font-size: 11px; }
-.preset-editor { display: grid; grid-template-columns: minmax(0, 1fr); gap: 5px; margin: auto 0 0; padding-top: 6px; border-top: 1px solid #29435f; }
+.preset-editor { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; margin-top: 8px; padding-top: 6px; border-top: 1px solid #29435f; }
 .preset-editor p { grid-column: 1 / -1; margin-bottom: 0; font-size: 11px; overflow-wrap: anywhere; }
 .preset-editor > .preset-actions { min-width: 122px; }
 .preset-editor:has(.preset-name-row[hidden]) > .preset-actions { grid-column: 1 / -1; }
 .preset-name-row { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 11px; }
 .preset-name-row input { flex: 1; min-width: 0; width: 0; height: 29px; padding: 3px 8px; border: 1px solid #3b5876; border-radius: 6px; background: #1a304b; color: #f4f7fb; }
-.preset-message { flex: 1; min-width: 0; margin: 0; color: #dce5ef; font-size: 11px; line-height: 1.25; text-align: center; overflow-wrap: anywhere; }
+.preset-message { margin: 7px 0 0; color: #dce5ef; font-size: 11px; overflow-wrap: anywhere; }
 .preset-message[data-error="true"] { color: #ffd5a9; }
 [hidden] { display: none !important; }
 
 .spectrum-panel {
-  margin-top: 8px;
-  padding: 7px 14px;
+  margin-top: 12px;
+  padding: 8px 14px;
   border: 1px solid #29435f;
   border-radius: 14px;
   background: #122238;
@@ -422,10 +439,9 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
 .spectrum-heading .equalizer-switch { display: flex; align-items: center; }
 .spectrum-heading h2 { flex: 0 0 auto; font-size: 13px; }
 #spectrum-status { margin: 0; color: #a9b8ca; font-size: 10px; text-align: right; }
-#spectrum-canvas { display: block; width: 100%; height: 111px; background: #0f1e31; border-radius: 5px; }
+#spectrum-canvas { display: block; width: 100%; height: 121px; background: #0f1e31; border-radius: 5px; }
 
-.message { margin: 10px 0 0; color: #ffd5a9; font-size: 11px; line-height: 1.35; overflow-wrap: anywhere; }
-
+.message,
 .sr-only {
   position: absolute;
   width: 1px;
@@ -442,6 +458,6 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
   body { width: 600px; }
   .workspace { grid-template-columns: 205px minmax(0, 1fr); }
   .panel { padding: 12px; }
-  .audio-panel, .equalizer { padding: 12px; }
+  .audio-panel, .equalizer { padding: 13px; }
   .eq-bands { grid-template-columns: repeat(7, minmax(35px, 1fr)); }
 }

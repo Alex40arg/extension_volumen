@@ -2,21 +2,7 @@
 
 Extensión local de Chrome para controlar de forma independiente el volumen de la pestaña actual.
 
-**Estado actual:** v0.8
-
-## Popup compacto v0.8
-
-Vista de aproximadamente **680 × 589 px**, sin scroll horizontal ni vertical en
-un área de 680 × 600 px. Header, espacios y paneles compactados; se eliminó la card
-inferior redundante de estado de Audio. Se conservan el badge global ON/OFF y los
-tres toggles locales. Faders de **144 px** y Spectrum Analyzer siempre visible a
-todo el ancho, con **90 px útiles de gráfico** (canvas de 111 px incluyendo labels).
-
-El editor de presets aprovecha el espacio libre inferior de Audio: Save, Rename
-y la confirmación de Delete no aumentan la altura del popup. Sus mensajes temporales
-aparecen en el espacio central del header. Se mantienen tipografías, selección de
-texto en inputs y todas las funciones de audio, EQ, presets y analizador, sin cambios
-en DSP, captura, storage ni permisos.
+**Estado actual:** v0.7
 
 ## Funciones
 
@@ -29,7 +15,7 @@ en DSP, captura, storage ni permisos.
 - Manejo claro y seguro de pestañas protegidas o no capturables.
 - Recuperación ante fallos de captura y finalización inesperada del stream.
 - Cleanup idempotente y protección ante interacciones rápidas.
-- Badge global OFF/ON y mensajes de error visibles cuando corresponde.
+- Estados OFF, ON, transición y error más claros en el popup.
 - Ecualizador gráfico de 7 bandas (30 Hz, 90 Hz, 300 Hz, 1 kHz, 3 kHz, 8 kHz y 15 kHz), independiente por pestaña.
 - Ajuste de cada banda entre -12 dB y +12 dB, en pasos de 1 dB y en tiempo real.
 - Presets de fábrica inmutables **Flat**, **Soft V**, **Bass**, **Voice** y **Treble**. Flat está disponible únicamente en el selector; se eliminó el botón redundante.
@@ -40,12 +26,12 @@ en DSP, captura, storage ni permisos.
 - La curva, el preset y el estado ON/OFF del EQ se conservan por pestaña al apagar **Audio processing**.
 - Cada reactivación comienza de forma segura con volumen en 100% y Mute OFF.
 - EQ OFF y curva plana por defecto para una activación segura.
-- Popup horizontal compacto con ecualizador de siete faders verticales.
+- Nuevo popup horizontal con ecualizador de siete faders verticales.
 - Identidad visual sobria en azul oscuro, rojo moderado y blanco.
-- **Spectrum Analyzer** real con `AnalyserNode`, canvas local y toggle independiente, OFF por defecto. Franja inferior completa, sin necesidad de scroll.
+- **Spectrum Analyzer** real con `AnalyserNode`, canvas local y toggle independiente, OFF por defecto. Franja inferior sin cambiar el panel principal.
 - Selección accidental de texto deshabilitada; los nombres de presets siguen siendo editables, seleccionables y permiten copiar/pegar.
 
-## Spectrum Analyzer
+## Spectrum Analyzer v0.7
 
 Cadena: **Source → EQ → AnalyserNode → Master Gain → Destination**. El nodo
 analiza sin cambiar el sonido y permanece conectado mientras exista la sesión,
@@ -116,7 +102,7 @@ volumen ni EQ. Renombrar conserva ID y ganancias; borrar conserva las curvas tem
 
 ## Prueba de presets en Chrome
 
-1. Si ya está instalada, pulsa **Reload** en su tarjeta de `chrome://extensions` y confirma versión **0.8.0**. Abre una pestaña web normal: Audio Processing OFF, 100%, Mute OFF, EQ OFF, Flat, Analyzer OFF. Confirma que header, ambos paneles y el analizador completo se vean sin scroll, también al abrir Save/Rename/Delete.
+1. Si ya está instalada, pulsa **Reload** en su tarjeta de `chrome://extensions` y confirma versión **0.7.0**. Abre una pestaña web normal: Audio Processing OFF, 100%, Mute OFF, EQ OFF, Flat, Analyzer OFF.
 2. Activa audio y EQ, crea una curva y pulsa **Save preset**. Escribe `Alex V` y confirma **Save**; debe aparecer seleccionado. Elige Flat y vuelve a Alex V: las siete bandas deben recuperarse.
 3. Cierra y abre el popup. Luego cierra completamente Chrome y vuelve a abrirlo: Alex V debe seguir en la lista, sin activación automática ni restauración del estado de una pestaña cerrada.
 4. Carga Alex V y pulsa **Rename** para llamarlo `Mi V`: conserva valores y selección. Pulsa **Delete**, prueba **Cancel**, y repite confirmando: desaparece de la lista, la curva permanece y el selector indica Custom.
@@ -137,11 +123,12 @@ volumen ni EQ. Renombrar conserva ID y ganancias; borrar conserva las curvas tem
 Pruebas lógicas sin dependencias: `node tests/v0.6.cjs` (regresión de presets)
 y `node tests/v0.7.cjs` (analizador, estados y ciclo de render). Simulan Chrome y
 Web Audio; no sustituyen la escucha, captura real, cierre del popup nativo ni
-persistencia real tras reiniciar Chrome. La compactación v0.8 se verificó en un
-viewport de 680 × 600 px con OFF, ON, formularios de presets y errores de nombre;
-sin ocultar contenido para simular la ausencia de scroll.
+persistencia real tras reiniciar Chrome. La vista normal se midió en aproximadamente
+680 × 689 px, con 100 px útiles de gráfico más labels. Mantener el panel principal
+de v0.6 supera el objetivo orientativo de altura: si Chrome la limita, permite
+scroll vertical sin recortar controles; el editor de presets añade altura temporal.
 
-## Limitaciones de v0.8
+## Limitaciones de v0.7
 
 - Requiere Chrome 116 o posterior.
 - Chrome no permite capturar páginas internas, la Chrome Web Store y algunas páginas protegidas.

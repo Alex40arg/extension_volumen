@@ -4,7 +4,7 @@ const { createHarness, source, clone } = require('./harness.cjs');
 
 (async () => {
   const manifest = JSON.parse(source('manifest.json'));
-  assert.equal(manifest.version, '0.8.0');
+  assert.equal(manifest.version, '0.7.0');
   assert.equal(manifest.minimum_chrome_version, '116');
   assert.deepEqual(manifest.permissions, ['offscreen', 'tabCapture', 'storage']);
   assert.equal(manifest.host_permissions, undefined);

@@ -1,0 +1,76 @@
+Lee `DEVELOPMENT_SPEC.md` antes de realizar cambios.
+
+La v0.1 funciona correctamente. Quiero hacer únicamente una mejora pequeña en el comportamiento del control de volumen.
+
+## Objetivo
+
+El volumen debe actualizarse **en tiempo real mientras el usuario mueve el slider**, no solamente cuando lo suelta.
+
+Actualmente parece actualizarse al finalizar el movimiento.
+
+Revisa `popup/popup.js` y cambia el manejo del slider para utilizar el evento apropiado (`input`) de modo que:
+
+* El porcentaje visual cambie continuamente mientras se arrastra.
+* El nuevo volumen se envíe al motor de audio durante el movimiento.
+* No sea necesario soltar el slider para escuchar el cambio.
+
+## Evitar clicks de audio
+
+Durante las pruebas se percibe ocasionalmente un pequeño “click” al modificar el volumen.
+
+Revisa `audio/offscreen.js`.
+
+Al cambiar el gain, evita saltos instantáneos bruscos en `GainNode.gain`.
+
+Implementa una transición muy corta y suave usando Web Audio API, por ejemplo mediante:
+
+* `cancelScheduledValues()`
+* `setValueAtTime()`
+* `linearRampToValueAtTime()`
+
+o una técnica equivalente apropiada.
+
+La transición debe ser muy breve, aproximadamente entre **10 y 30 ms**, para eliminar clicks sin introducir una sensación perceptible de retraso.
+
+Esto debe aplicarse también cuando:
+
+* se mueve el slider;
+* se usa Reset 100%;
+* se activa o desactiva Mute,
+
+si corresponde técnicamente.
+
+No cambies la arquitectura general.
+
+No agregues permisos.
+
+No agregues dependencias.
+
+No modifiques el rango actual de 0–200%.
+
+No agregues todavía ecualizador ni otras funciones.
+
+Mantén intacto todo el comportamiento per-tab existente.
+
+## Backup
+
+Antes de modificar la versión funcional actual, guarda un snapshot completo de la v0.1 en:
+
+`old_versions/v0.1/`
+
+Respeta las reglas de backup de `DEVELOPMENT_SPEC.md`:
+
+* no copies `old_versions` dentro de sí mismo;
+* no sobrescribas un snapshot existente;
+* preserva la versión guardada sin modificaciones posteriores.
+
+Después realiza los cambios sobre los archivos activos.
+
+## Al finalizar
+
+Indica brevemente:
+
+* qué archivos modificaste;
+* cómo implementaste la actualización continua del slider;
+* cómo evitaste los clicks de gain;
+* confirma que no agregaste permisos ni dependencias.

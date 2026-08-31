@@ -37,6 +37,8 @@ const elements = {
   cancelPreset: document.querySelector("#cancel-preset"),
   presetMessage: document.querySelector("#preset-message"),
   stateBadge: document.querySelector("#state-badge"),
+  status: document.querySelector("#status"),
+  statusText: document.querySelector("#status-text"),
   message: document.querySelector("#message")
 };
 
@@ -47,6 +49,8 @@ let busy = true;
 let volumeRequestNumber = 0;
 let eqRequestNumber = 0;
 let eqBusy = false;
+let transition = "";
+let currentError = "";
 let customPresets = [];
 let presetBusy = false;
 let presetEditor = null;
@@ -132,8 +136,8 @@ function openPresetEditor(action) {
   elements.presetNameRow.hidden = action === "DELETE";
   elements.presetName.value = action === "RENAME" ? selected.name : "";
   elements.presetEditorTitle.textContent = action === "DELETE"
-    ? `Delete “${selected.name}”?`
-    : action === "RENAME" ? "Rename preset" : "Save preset";
+    ? `Delete “${selected.name}”? The current EQ curve will stay unchanged.`
+    : action === "RENAME" ? "Rename preset" : "Save a copy of the current curve";
   elements.confirmPreset.textContent = { SAVE: "Save", RENAME: "Rename", DELETE: "Delete" }[action];
   renderPresetControls();
   (action === "DELETE" ? elements.cancelPreset : elements.presetName).focus();
@@ -180,6 +184,7 @@ async function commitPreset(event) {
 }
 
 function showMessage(text = "") {
+  currentError = text;
   elements.message.textContent = text;
   elements.message.hidden = !text;
 }
@@ -231,6 +236,16 @@ function render(state = currentState) {
   });
   elements.stateBadge.textContent = currentState.enabled ? "ON" : "OFF";
   elements.stateBadge.className = `badge ${currentState.enabled ? "badge-on" : "badge-off"}`;
+  const statusKind = currentError ? "error" : currentState.enabled ? "on" : "off";
+  elements.status.className = `status status-${statusKind}`;
+  elements.statusText.textContent = currentError
+    || (transition === "starting" ? "Starting audio processing…" : "")
+    || (transition === "stopping" ? "Stopping audio processing…" : "")
+    || (currentState.enabled
+      ? currentState.muted
+        ? "Audio processing active · Muted"
+        : "Audio processing active"
+      : "Not active on this tab");
 }
 
 async function sendCommand(type, data = {}) {
@@ -251,6 +266,7 @@ async function sendCommand(type, data = {}) {
 
 async function setProcessing(enabled) {
   busy = true;
+  transition = enabled ? "starting" : "stopping";
   showMessage();
   render();
 
@@ -264,6 +280,7 @@ async function setProcessing(enabled) {
     }
     showMessage(error.message);
   } finally {
+    transition = "";
     busy = false;
     render();
   }
@@ -344,6 +361,7 @@ async function refreshState() {
     currentState = { ...DEFAULT_STATE };
     showMessage(error.message);
   } finally {
+    transition = "";
     busy = false;
     render();
   }
@@ -448,6 +466,7 @@ chrome.runtime.onMessage.addListener((message) => {
   eqRequestNumber += 1;
   currentState = message.state || { ...DEFAULT_STATE };
   busy = false;
+  transition = "";
   showMessage(currentState.enabled ? "" : "Audio processing stopped unexpectedly.");
   render();
   return false;
