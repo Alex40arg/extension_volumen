@@ -1,0 +1,1010 @@
+Lee completamente `DEVELOPMENT_SPEC.md` y `README.md` antes de modificar el proyecto.
+
+La versión actual `v0.6` funciona correctamente y ya incluye:
+
+* layout horizontal;
+* identidad visual azul / rojo / blanco;
+* Audio Processing ON/OFF;
+* volumen independiente por pestaña;
+* master volume 0–200%;
+* Reset 100%;
+* Mute;
+* ecualizador de 7 bandas;
+* EQ ON/OFF;
+* presets de fábrica;
+* presets personalizados persistentes en `chrome.storage.local`;
+* Save / Rename / Delete;
+* estado Custom;
+* conservación temporal del EQ por pestaña;
+* master volume vuelve siempre a 100% al reactivar;
+* permisos actuales:
+
+  * `offscreen`
+  * `tabCapture`
+  * `storage`
+
+Quiero implementar ahora la **versión v0.7**.
+
+Objetivos principales:
+
+1. Agregar un analizador de espectro real basado en Web Audio API.
+2. Mostrarlo en una franja inferior que ocupe todo el ancho del popup.
+3. Permitir encender/apagar el analizador con un toggle propio.
+4. Corregir la lógica de `Save preset`.
+5. Desactivar selección accidental de texto en la interfaz.
+6. Mantener intacta toda la funcionalidad actual de audio, EQ y presets.
+
+---
+
+# 1. Backup obligatorio
+
+Antes de modificar los archivos activos:
+
+1. Guarda un snapshot completo de la versión actual en:
+
+`old_versions/v0.6/`
+
+2. Respeta las reglas de backup de `DEVELOPMENT_SPEC.md`.
+
+3. No sobrescribas snapshots existentes.
+
+4. No copies `old_versions` dentro del backup.
+
+5. Después del snapshot, modifica solamente los archivos activos.
+
+---
+
+# 2. Spectrum Analyzer
+
+Agregar un analizador de espectro usando Web Audio API.
+
+Usar:
+
+```text
+AnalyserNode
+```
+
+No usar datos simulados.
+
+No generar animaciones falsas.
+
+El analizador debe representar realmente el audio capturado de la pestaña.
+
+---
+
+# 3. Posición en la cadena DSP
+
+Insertar el analizador después del ecualizador y antes del master volume.
+
+Cadena conceptual:
+
+```text
+Source
+ ↓
+EQ
+ ↓
+AnalyserNode
+ ↓
+Master Gain
+ ↓
+Destination
+```
+
+Motivo:
+
+El analizador debe mostrar el contenido tonal resultante del EQ, pero no debe reducir visualmente su amplitud simplemente porque el usuario bajó el master volume.
+
+Mantener esta posición salvo que exista una razón técnica fuerte para cambiarla.
+
+---
+
+# 4. El AnalyserNode no debe alterar el sonido
+
+El `AnalyserNode` debe actuar como nodo de análisis, no como efecto audible.
+
+No debe:
+
+* cambiar gain;
+* cambiar respuesta tonal;
+* generar latencia perceptible;
+* modificar dinámica.
+
+EQ OFF + Analyzer ON debe sonar igual que EQ OFF + Analyzer OFF.
+
+---
+
+# 5. Toggle independiente
+
+Agregar:
+
+```text
+Spectrum Analyzer   ON / OFF
+```
+
+Default:
+
+```text
+OFF
+```
+
+El analizador no debe activarse automáticamente al instalar la extensión.
+
+El usuario debe decidir si quiere visualizarlo.
+
+---
+
+# 6. Comportamiento cuando Audio Processing está OFF
+
+Si `Audio Processing` está OFF:
+
+* el analizador no puede mostrar audio real;
+* debe quedar visualmente inactivo;
+* no debe ejecutar loop gráfico;
+* no debe consumir CPU innecesariamente.
+
+Puede conservarse temporalmente la preferencia ON/OFF durante la vida de la pestaña si resulta coherente con el modelo actual.
+
+Pero nunca debe iniciar captura por sí mismo.
+
+---
+
+# 7. Comportamiento al reactivar Audio Processing
+
+Si el usuario tenía:
+
+```text
+Analyzer ON
+```
+
+y apaga Audio Processing:
+
+* detener renderizado;
+* destruir sesión DSP normalmente;
+* conservar la preferencia temporal si corresponde.
+
+Al volver a activar Audio Processing:
+
+* Volume = 100%;
+* Mute = OFF;
+* EQ recupera estado actual;
+* Analyzer puede volver ON si estaba ON antes.
+
+No amplificar volumen automáticamente.
+
+---
+
+# 8. Estado por pestaña
+
+El estado del analizador debe ser independiente por pestaña.
+
+Ejemplo:
+
+```text
+Tab A:
+Analyzer ON
+
+Tab B:
+Analyzer OFF
+
+Tab C:
+Analyzer ON
+```
+
+No propagar estado entre tabs.
+
+No persistir por hostname.
+
+No guardar automáticamente en `chrome.storage.local` salvo que ya exista un mecanismo explícito para settings de pestaña.
+
+---
+
+# 9. Configuración inicial del AnalyserNode
+
+Usar valores razonables.
+
+Propuesta inicial:
+
+```text
+fftSize = 2048
+```
+
+Puede usarse:
+
+```text
+1024
+```
+
+si ofrece una mejor relación entre suavidad y rendimiento.
+
+Configurar también:
+
+```text
+smoothingTimeConstant
+```
+
+con un valor moderado, aproximadamente:
+
+```text
+0.7 – 0.85
+```
+
+El objetivo es que el gráfico:
+
+* responda;
+* no tiemble excesivamente;
+* se vea fluido;
+* no parezca pegado o lento.
+
+Documenta en código los valores elegidos.
+
+---
+
+# 10. Visualización
+
+Usar preferentemente:
+
+```text
+canvas
+```
+
+para dibujar el espectro.
+
+No usar docenas de elementos DOM actualizados por frame.
+
+El canvas debe ser local y sin dependencias externas.
+
+---
+
+# 11. Diseño general del analizador
+
+El analizador debe ocupar una franja inferior a todo el ancho del popup.
+
+Conceptualmente:
+
+```text
+┌──────────────────────────────────────────────┐
+│ TAB AUDIO CONTROL                           │
+├───────────────┬──────────────────────────────┤
+│ AUDIO         │ EQUALIZER                    │
+│               │                              │
+│ ...           │ ...                          │
+├───────────────┴──────────────────────────────┤
+│ SPECTRUM ANALYZER                    ON/OFF │
+│                                              │
+│ ▁▂▄▆█▇▅▃▂▁▂▄▅▇█▆▄▂▁                         │
+└──────────────────────────────────────────────┘
+```
+
+Debe integrarse con el diseño actual.
+
+---
+
+# 12. Altura del analizador
+
+Mantenerlo relativamente compacto.
+
+Objetivo aproximado:
+
+```text
+100–140 px
+```
+
+de área gráfica útil.
+
+No hacer que el analizador domine visualmente toda la extensión.
+
+---
+
+# 13. Estética del analizador
+
+Mantener identidad:
+
+* fondo azul oscuro;
+* barras rojo moderado;
+* texto blanco;
+* líneas auxiliares azul/gris.
+
+Evitar colores brillantes saturados.
+
+El rojo debe seguir siendo el mismo acento visual de la interfaz.
+
+---
+
+# 14. Tipo de gráfico
+
+Para v0.7 usar:
+
+```text
+barras verticales
+```
+
+No implementar todavía:
+
+* waveform;
+* osciloscopio;
+* línea continua;
+* waterfall;
+* spectrogram.
+
+Las barras deben ser suaves y limpias.
+
+---
+
+# 15. Distribución de frecuencias
+
+El eje horizontal debe representar frecuencias de forma musical.
+
+Preferir distribución:
+
+```text
+logarítmica
+```
+
+en lugar de lineal pura.
+
+Esto es importante para dar espacio visual razonable a graves, medios y agudos.
+
+No mostrar cientos de bins directamente uno a uno.
+
+Agrupar bins en un número razonable de barras.
+
+Rango visual aproximado:
+
+```text
+30 Hz → 15 kHz
+```
+
+Puede extenderse ligeramente si simplifica la implementación.
+
+---
+
+# 16. Número de barras
+
+Usar una cantidad razonable, por ejemplo:
+
+```text
+32
+48
+64
+```
+
+Elige según tamaño del canvas.
+
+Evitar:
+
+* demasiadas barras diminutas;
+* pocas barras enormes.
+
+Debe verse fluido y útil.
+
+---
+
+# 17. Labels de frecuencia
+
+Agregar pocas referencias visuales.
+
+Ejemplo:
+
+```text
+30   100   300   1k   3k   8k   15k
+```
+
+No saturar con labels.
+
+Pueden alinearse aproximadamente con las bandas del EQ.
+
+---
+
+# 18. Escala vertical
+
+Representar magnitud de forma visual estable.
+
+Puede usarse:
+
+```text
+getByteFrequencyData()
+```
+
+o:
+
+```text
+getFloatFrequencyData()
+```
+
+Elige la alternativa más apropiada.
+
+Si usas dB, ajusta:
+
+```text
+minDecibels
+maxDecibels
+```
+
+con valores razonables.
+
+No mostrar números dB por barra.
+
+---
+
+# 19. Loop de renderizado
+
+Usar:
+
+```text
+requestAnimationFrame
+```
+
+solo mientras:
+
+* Audio Processing está ON;
+* Analyzer está ON;
+* popup está abierto.
+
+IMPORTANTE:
+
+El popup desaparece al cerrarse, por lo tanto el loop gráfico no debe seguir existiendo fuera de él.
+
+El DSP puede mantener el AnalyserNode, pero la visualización solo debe ejecutarse mientras el popup exista.
+
+---
+
+# 20. Comunicación de datos
+
+Diseña una forma eficiente de obtener datos del analizador.
+
+Evita enviar grandes arrays a través de `chrome.runtime.sendMessage` 60 veces por segundo si existe una alternativa más eficiente.
+
+Prioriza:
+
+1. estabilidad;
+2. bajo consumo;
+3. simplicidad;
+4. arquitectura clara.
+
+Si el popup necesita recibir datos desde el offscreen document mediante mensajería, limita el frame rate si es necesario.
+
+Por ejemplo:
+
+```text
+20–30 FPS
+```
+
+puede ser suficiente visualmente.
+
+No es obligatorio alcanzar 60 FPS.
+
+---
+
+# 21. Rendimiento
+
+El analizador debe ser ligero.
+
+Evitar:
+
+* loops excesivos;
+* allocation de arrays grandes cada frame;
+* creación continua de nodos;
+* mensajes innecesarios;
+* redibujado si está OFF.
+
+Reutilizar buffers.
+
+---
+
+# 22. Analyzer OFF
+
+Cuando se apaga el Analyzer:
+
+* detener inmediatamente loop visual;
+* limpiar canvas o mostrar estado inactivo;
+* no destruir EQ ni volumen;
+* no alterar audio.
+
+Puede mantenerse el AnalyserNode dentro de la cadena si eso simplifica el DSP y no consume significativamente.
+
+---
+
+# 23. Cleanup
+
+Cuando la pestaña se cierra o Audio Processing se apaga:
+
+* limpiar referencias del analyser;
+* detener cualquier polling asociado;
+* mantener cleanup idempotente;
+* no afectar otras pestañas.
+
+---
+
+# 24. FIX: Save preset
+
+Actualmente `Save preset` puede quedar habilitado simplemente al seleccionar un preset aunque el usuario no haya modificado ninguna banda.
+
+Corregir este comportamiento.
+
+Regla:
+
+```text
+Preset seleccionado sin modificaciones
+→ Save disabled
+```
+
+Ejemplo:
+
+```text
+Soft V seleccionado
+ninguna banda tocada
+→ Save disabled
+```
+
+---
+
+# 25. Save habilitado solamente ante cambios manuales
+
+Al modificar manualmente cualquier banda:
+
+```text
+selectedPreset → Custom
+```
+
+y:
+
+```text
+Save enabled
+```
+
+Esto debe ocurrir tanto si el usuario partió de:
+
+* factory preset;
+* custom preset guardado.
+
+---
+
+# 26. Custom no guardado
+
+Ejemplo:
+
+```text
+Soft V
+```
+
+Usuario cambia:
+
+```text
+1 kHz -3 → -4
+```
+
+Resultado:
+
+```text
+Preset: Custom
+Save enabled
+```
+
+Después de guardar como:
+
+```text
+Alex V
+```
+
+Resultado:
+
+```text
+Preset: Alex V
+Save disabled
+```
+
+hasta que vuelva a modificar alguna banda.
+
+---
+
+# 27. Factory preset sin cambios
+
+Si el usuario selecciona:
+
+```text
+Bass
+```
+
+y no modifica nada:
+
+```text
+Save disabled
+Rename disabled
+Delete disabled
+```
+
+---
+
+# 28. Custom preset guardado sin cambios
+
+Si selecciona:
+
+```text
+Alex V
+```
+
+sin modificarlo:
+
+```text
+Save disabled
+Rename enabled
+Delete enabled
+```
+
+---
+
+# 29. FIX: selección accidental de texto
+
+Actualmente el usuario puede mantener click izquierdo y seleccionar textos del popup.
+
+Deshabilitar selección accidental globalmente.
+
+Aplicar una regla equivalente a:
+
+```css
+user-select: none;
+```
+
+en la interfaz.
+
+---
+
+# 30. Excepciones a user-select
+
+Mantener selección de texto donde sea necesaria.
+
+Especialmente:
+
+* input de nombre de preset;
+* campos editables;
+* otros inputs de texto.
+
+Ejemplo:
+
+```css
+input[type="text"],
+textarea {
+  user-select: text;
+}
+```
+
+El usuario debe seguir pudiendo:
+
+* escribir;
+* seleccionar parte del nombre;
+* copiar;
+* pegar;
+* editar texto.
+
+---
+
+# 31. No bloquear interacción
+
+`user-select: none` no debe afectar:
+
+* sliders;
+* botones;
+* toggles;
+* selects;
+* inputs;
+* navegación de teclado.
+
+---
+
+# 32. UI actual
+
+Mantener:
+
+* layout horizontal;
+* panel Audio;
+* panel Equalizer;
+* presets;
+* sliders verticales;
+* colores;
+* dimensiones generales.
+
+Agregar únicamente la franja inferior.
+
+No rediseñar otra vez el panel principal.
+
+---
+
+# 33. Altura total del popup
+
+El popup crecerá verticalmente.
+
+Mantener tamaño razonable.
+
+Objetivo aproximado total:
+
+```text
+550–650 px
+```
+
+si Chrome lo permite sin problemas.
+
+Evitar scroll vertical si puede resolverse con un layout compacto.
+
+Si Chrome limita altura y aparece scroll mínimo, priorizar funcionalidad y legibilidad.
+
+---
+
+# 34. No modificar DSP existente innecesariamente
+
+No cambiar:
+
+* frecuencias EQ;
+* Q;
+* ranges;
+* presets;
+* volumen;
+* smoothing de gain;
+
+salvo lo estrictamente necesario para insertar el `AnalyserNode`.
+
+---
+
+# 35. Permisos
+
+No agregar permisos nuevos.
+
+Mantener:
+
+```text
+offscreen
+tabCapture
+storage
+```
+
+El Spectrum Analyzer no debe requerir permisos adicionales.
+
+---
+
+# 36. Storage
+
+No guardar datos del espectro.
+
+No almacenar:
+
+* FFT;
+* amplitudes;
+* audio;
+* historial de análisis.
+
+`chrome.storage.local` sigue reservado a presets personalizados.
+
+---
+
+# 37. Privacidad
+
+Mantener:
+
+* procesamiento totalmente local;
+* ningún audio grabado;
+* ningún audio almacenado;
+* ningún audio enviado;
+* cero telemetría;
+* cero analytics;
+* cero red externa.
+
+---
+
+# 38. Manifest
+
+Actualizar versión a:
+
+```text
+0.7.0
+```
+
+Mantener:
+
+```text
+minimum_chrome_version: 116
+```
+
+Permisos:
+
+```text
+offscreen
+tabCapture
+storage
+```
+
+---
+
+# 39. README
+
+Actualizar README a v0.7.
+
+Mencionar:
+
+* Spectrum Analyzer real;
+* AnalyserNode;
+* visualización local;
+* toggle independiente;
+* distribución logarítmica;
+* no se graba ni almacena audio;
+* corrección de Save preset;
+* selección accidental de texto deshabilitada.
+
+Mantener documentación concisa.
+
+---
+
+# 40. Pruebas manuales/lógicas
+
+## A. Analyzer OFF
+
+Audio Processing ON.
+
+Analyzer OFF.
+
+Confirmar:
+
+* audio normal;
+* sin gráfico activo;
+* sin errores.
+
+---
+
+## B. Analyzer ON
+
+Activar Analyzer.
+
+Debe aparecer espectro dinámico real.
+
+---
+
+## C. EQ
+
+Mover:
+
+```text
+30 Hz +8
+```
+
+El analizador debe reflejar aumento relativo de graves si el audio contiene esas frecuencias.
+
+---
+
+## D. EQ Flat
+
+Volver Flat.
+
+La respuesta visual debe regresar coherentemente.
+
+---
+
+## E. Master volume
+
+Mover:
+
+```text
+100% → 30%
+```
+
+El espectro no debe colapsar proporcionalmente simplemente por bajar master volume, ya que está antes del GainNode.
+
+---
+
+## F. Mute
+
+Mute puede silenciar salida.
+
+El analizador puede continuar mostrando señal pre-master mientras exista audio capturado.
+
+Este comportamiento es aceptable y debe documentarse.
+
+---
+
+## G. Analyzer OFF/ON repetido
+
+Alternar varias veces.
+
+No debe:
+
+* crear nodos duplicados;
+* acelerar animación;
+* generar errores.
+
+---
+
+## H. Popup close
+
+Analyzer ON.
+
+Cerrar popup.
+
+Reabrir.
+
+No deben existir loops gráficos huérfanos.
+
+---
+
+## I. Dos pestañas
+
+Tab A Analyzer ON.
+
+Tab B Analyzer OFF.
+
+Estados independientes.
+
+---
+
+## J. Save preset
+
+Seleccionar Soft V.
+
+Sin tocar faders:
+
+```text
+Save disabled
+```
+
+Mover una banda:
+
+```text
+Custom
+Save enabled
+```
+
+Guardar.
+
+```text
+Save disabled
+```
+
+---
+
+## K. Text selection
+
+Arrastrar mouse sobre títulos y labels.
+
+No deben seleccionarse.
+
+Editar nombre de preset.
+
+El texto dentro del input sí debe poder seleccionarse.
+
+---
+
+# 41. Revisión final
+
+Antes de finalizar:
+
+1. Confirmar backup `old_versions/v0.6/`.
+2. Confirmar v0.7.0.
+3. Confirmar permisos sin cambios.
+4. Confirmar AnalyserNode real.
+5. Confirmar analyzer después del EQ y antes de master gain.
+6. Confirmar rendering solo cuando popup está abierto.
+7. Confirmar sin almacenamiento de audio/FFT.
+8. Confirmar Save preset corregido.
+9. Confirmar selección accidental deshabilitada.
+10. Confirmar inputs de texto siguen editables.
+11. Confirmar no se agregaron dependencias.
+12. Confirmar no existen conexiones externas.
+
+---
+
+# 42. Al finalizar
+
+Devuélveme un resumen breve indicando:
+
+* archivos modificados;
+* confirmación del backup `old_versions/v0.6/`;
+* cómo se insertó el AnalyserNode;
+* fftSize;
+* smoothing;
+* número de barras;
+* distribución de frecuencias;
+* frame rate aproximado;
+* cómo se transfieren datos al popup;
+* comportamiento con popup cerrado;
+* comportamiento con Analyzer OFF;
+* corrección aplicada a Save preset;
+* implementación de `user-select`;
+* confirmación de permisos;
+* confirmación de ausencia de red/telemetría;
+* pasos concretos para probar manualmente v0.7.

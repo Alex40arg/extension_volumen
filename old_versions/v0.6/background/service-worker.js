@@ -6,8 +6,6 @@ const DEFAULT_STATE = Object.freeze({
   volume: 100,
   muted: false,
   eqEnabled: false,
-  analyzerEnabled: false,
-  eqDirty: false,
   eqGains: Object.freeze(Array(7).fill(0)),
   selectedPreset: "Flat"
 });
@@ -178,8 +176,6 @@ async function handlePopupMessage(message) {
       return enqueueForTab(tabId, () => updateSession("SET_MUTED", tabId, { muted: message.muted }));
     case "SET_EQ_ENABLED":
       return enqueueForTab(tabId, () => updateSession("SET_EQ_ENABLED", tabId, { eqEnabled: message.eqEnabled }));
-    case "SET_ANALYZER_ENABLED":
-      return enqueueForTab(tabId, () => updateSession("SET_ANALYZER_ENABLED", tabId, { analyzerEnabled: message.analyzerEnabled }));
     case "SET_EQ_BAND":
       return enqueueForTab(tabId, () => updateSession("SET_EQ_BAND", tabId, {
         bandIndex: message.bandIndex,

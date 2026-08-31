@@ -17,8 +17,6 @@ const tabSettings = new Map();
 function defaultSettings() {
   return {
     eqEnabled: false,
-    analyzerEnabled: false,
-    eqDirty: false,
     eqGains: [...DEFAULT_EQ_GAINS],
     selectedPreset: "Flat"
   };
@@ -42,8 +40,6 @@ function publicState(tabId) {
     volume: session?.volume ?? 100,
     muted: session?.muted ?? false,
     eqEnabled: settings.eqEnabled,
-    analyzerEnabled: settings.analyzerEnabled,
-    eqDirty: settings.eqDirty,
     eqGains: [...settings.eqGains],
     selectedPreset: settings.selectedPreset
   };
@@ -115,9 +111,6 @@ async function destroySession(tabId, notify = false) {
     disconnectNode(filter, `EQ band ${index + 1} for tab ${tabId}`);
   });
   disconnectNode(session.gainNode, `gain node for tab ${tabId}`);
-  disconnectNode(session.analyserNode, `analyser node for tab ${tabId}`);
-  session.analyserNode = null;
-  session.spectrum = null;
 
   for (const track of session.stream.getTracks()) {
     try {
@@ -157,7 +150,6 @@ async function startSession(tabId, streamId) {
   let sourceNode = null;
   let eqFilters = [];
   let gainNode = null;
-  let analyserNode = null;
 
   try {
     stream = await navigator.mediaDevices.getUserMedia({
@@ -183,11 +175,6 @@ async function startSession(tabId, streamId) {
       return filter;
     });
     gainNode = audioContext.createGain();
-    analyserNode = audioContext.createAnalyser();
-    analyserNode.fftSize = SPECTRUM.fftSize;
-    analyserNode.smoothingTimeConstant = SPECTRUM.smoothing;
-    analyserNode.minDecibels = SPECTRUM.minDecibels;
-    analyserNode.maxDecibels = SPECTRUM.maxDecibels;
 
     // Hearing-safety invariant: every newly controlled tab starts at unity gain.
     gainNode.gain.setValueAtTime(1, audioContext.currentTime);
@@ -195,10 +182,7 @@ async function startSession(tabId, streamId) {
     for (let index = 0; index < eqFilters.length - 1; index += 1) {
       eqFilters[index].connect(eqFilters[index + 1]);
     }
-    // Transparent analysis after EQ, before master gain/mute. Toggling the
-    // display never reconnects nodes or changes the audible signal path.
-    eqFilters.at(-1).connect(analyserNode);
-    analyserNode.connect(gainNode);
+    eqFilters.at(-1).connect(gainNode);
     gainNode.connect(audioContext.destination);
 
     if (audioContext.state === "suspended") {
@@ -217,8 +201,6 @@ async function startSession(tabId, streamId) {
       sourceNode,
       eqFilters,
       gainNode,
-      analyserNode,
-      spectrum: createSpectrumBuffers(analyserNode, audioContext.sampleRate),
       volume: 100,
       muted: false,
       handleTrackEnded
@@ -237,7 +219,6 @@ async function startSession(tabId, streamId) {
       sourceNode = null;
       eqFilters = [];
       gainNode = null;
-      analyserNode = null;
       throw new Error("The captured stream ended during initialization.");
     }
 
@@ -246,7 +227,6 @@ async function startSession(tabId, streamId) {
     disconnectNode(sourceNode, "partial source node");
     eqFilters.forEach((filter, index) => disconnectNode(filter, `partial EQ band ${index + 1}`));
     disconnectNode(gainNode, "partial gain node");
-    disconnectNode(analyserNode, "partial analyser node");
 
     for (const track of stream?.getTracks() || []) {
       try {
@@ -316,7 +296,6 @@ function setEqBand(tabId, bandIndexValue, gainValue) {
   const settings = getSettings(tabId, true);
   settings.eqGains[bandIndex] = gain;
   settings.selectedPreset = "Custom";
-  settings.eqDirty = true;
   const effectiveGain = settings.eqEnabled ? gain : 0;
   rampAudioParam(session.eqFilters[bandIndex].gain, effectiveGain, session.audioContext);
   return publicState(tabId);
@@ -331,43 +310,9 @@ function applyEqPreset(tabId, preset, customGains) {
   const settings = getSettings(tabId, true);
   settings.eqGains = [...gains];
   settings.selectedPreset = preset;
-  settings.eqDirty = false;
   const session = sessions.get(tabId);
   if (session) applyEq(session);
   return publicState(tabId);
-}
-
-function createSpectrumBuffers(analyser, sampleRate) {
-  const bins = new Uint8Array(analyser.frequencyBinCount);
-  const bars = Array(SPECTRUM.bars).fill(0);
-  const ranges = [];
-  const maxHz = Math.min(SPECTRUM.maxHz, sampleRate / 2);
-  const binHz = sampleRate / analyser.fftSize;
-  for (let index = 0; index < SPECTRUM.bars; index += 1) {
-    const low = SPECTRUM.minHz * (maxHz / SPECTRUM.minHz) ** (index / SPECTRUM.bars);
-    const high = SPECTRUM.minHz * (maxHz / SPECTRUM.minHz) ** ((index + 1) / SPECTRUM.bars);
-    const start = Math.min(bins.length - 1, Math.max(1, Math.round(low / binHz)));
-    const end = Math.min(bins.length, Math.max(start + 1, Math.round(high / binHz)));
-    ranges.push([start, end]);
-  }
-  // Low bars can share a bin: FFT resolution is finite, not invented detail.
-  return { bins, bars, ranges };
-}
-
-function readSpectrum(tabId) {
-  const session = sessions.get(tabId);
-  if (!session || !getSettings(tabId).analyzerEnabled) return { active: false };
-  const { bins, bars, ranges } = session.spectrum;
-  session.analyserNode.getByteFrequencyData(bins);
-  for (let index = 0; index < bars.length; index += 1) {
-    let peak = 0;
-    const [start, end] = ranges[index];
-    for (let bin = start; bin < end; bin += 1) peak = Math.max(peak, bins[bin]);
-    bars[index] = peak;
-  }
-  // No timer in the engine. Buffers are reused; Chrome serializes 48 numbers
-  // only in response to a visible popup request, never stores audio or FFT.
-  return { active: true, bars };
 }
 
 async function handleMessage(message) {
@@ -379,13 +324,6 @@ async function handleMessage(message) {
     case "PING":
       return {};
     case "GET_STATE":
-      return { state: publicState(message.tabId) };
-    case "GET_SPECTRUM":
-      return readSpectrum(message.tabId);
-    case "SET_ANALYZER_ENABLED":
-      requireSession(message.tabId);
-      if (typeof message.analyzerEnabled !== "boolean") throw new Error("Analyzer state must be a boolean.");
-      getSettings(message.tabId, true).analyzerEnabled = message.analyzerEnabled;
       return { state: publicState(message.tabId) };
     case "START_SESSION":
       return { state: await startSession(message.tabId, message.streamId) };
@@ -412,7 +350,6 @@ async function handleMessage(message) {
       if (CUSTOM_PRESET_ID.test(message.preset) && validPresetGains(message.gains)
           && settings.eqGains.every((gain, index) => gain === message.gains[index])) {
         settings.selectedPreset = message.preset;
-        settings.eqDirty = false;
       }
       return { state: publicState(message.tabId) };
     }

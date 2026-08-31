@@ -34,22 +34,14 @@ function createHarness(initial = {}) {
   }
   class Node {
     gain = new Param(); frequency = new Param(); Q = new Param();
-    connections = []; disconnected = false;
-    connect(node) { this.connections.push(node); }
-    disconnect() { this.connections = []; this.disconnected = true; }
-  }
-  class Analyser extends Node {
-    fftSize = 2048; reads = 0;
-    data = new Uint8Array(1024);
-    get frequencyBinCount() { return this.fftSize / 2; }
-    getByteFrequencyData(buffer) { this.reads++; buffer.set(this.data); }
+    connect() {}
+    disconnect() {}
   }
   class AudioContext {
-    currentTime = 0; state = 'running'; destination = {}; sampleRate = 48000;
+    currentTime = 0; state = 'running'; destination = {};
     createMediaStreamSource() { return new Node(); }
     createBiquadFilter() { return new Node(); }
     createGain() { return new Node(); }
-    createAnalyser() { return new Analyser(); }
     async close() { this.state = 'closed'; }
     async resume() {}
   }
@@ -60,7 +52,7 @@ function createHarness(initial = {}) {
     } } },
     chrome: { runtime: { onMessage: { addListener: (listener) => audioListeners.push(listener) }, sendMessage } }
   });
-  vm.runInContext(source('shared/presets.js') + '\n' + source('shared/spectrum.js') + '\n' + source('audio/offscreen.js'), audio);
+  vm.runInContext(source('shared/presets.js') + '\n' + source('audio/offscreen.js'), audio);
   const chrome = {
     runtime: {
       getURL: (file) => `chrome-extension://test/${file}`,

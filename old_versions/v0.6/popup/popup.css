@@ -5,9 +5,7 @@
   background: #0b1626;
 }
 
-* { box-sizing: border-box; user-select: none; }
-
-input[type="text"], textarea, [contenteditable="true"] { user-select: text; }
+* { box-sizing: border-box; }
 
 body {
   width: 680px;
@@ -267,8 +265,7 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
 
 .equalizer-switch { gap: 9px; }
 
-#equalizer-state,
-#analyzer-state {
+#equalizer-state {
   min-width: 25px;
   color: #a9b8ca;
   font-size: 10px;
@@ -427,19 +424,6 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
 .preset-message { margin: 7px 0 0; color: #dce5ef; font-size: 11px; overflow-wrap: anywhere; }
 .preset-message[data-error="true"] { color: #ffd5a9; }
 [hidden] { display: none !important; }
-
-.spectrum-panel {
-  margin-top: 12px;
-  padding: 8px 14px;
-  border: 1px solid #29435f;
-  border-radius: 14px;
-  background: #122238;
-}
-.spectrum-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 5px; }
-.spectrum-heading .equalizer-switch { display: flex; align-items: center; }
-.spectrum-heading h2 { flex: 0 0 auto; font-size: 13px; }
-#spectrum-status { margin: 0; color: #a9b8ca; font-size: 10px; text-align: right; }
-#spectrum-canvas { display: block; width: 100%; height: 121px; background: #0f1e31; border-radius: 5px; }
 
 .message,
 .sr-only {

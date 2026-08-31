@@ -156,27 +156,10 @@
         </section>
       </div>
 
-      <section class="spectrum-panel" aria-labelledby="spectrum-label">
-        <div class="spectrum-heading">
-          <h2 id="spectrum-label">Spectrum Analyzer</h2>
-          <p id="spectrum-status" role="status">Analyzer off</p>
-          <div class="equalizer-switch">
-            <span id="analyzer-state">OFF</span>
-            <label class="switch">
-              <input id="analyzer-toggle" type="checkbox" role="switch" aria-labelledby="spectrum-label" disabled>
-              <span class="switch-track" aria-hidden="true"></span>
-            </label>
-          </div>
-        </div>
-        <canvas id="spectrum-canvas" role="img" aria-label="Live audio spectrum from 30 Hz to 15 kHz, after EQ and before master volume" aria-describedby="spectrum-status"></canvas>
-      </section>
-
       <p id="message" class="message" role="alert" aria-live="assertive" hidden></p>
     </main>
 
     <script src="../shared/presets.js"></script>
-    <script src="../shared/spectrum.js"></script>
-    <script src="spectrum.js"></script>
     <script src="popup.js"></script>
   </body>
 </html>

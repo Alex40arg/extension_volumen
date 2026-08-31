@@ -4,16 +4,12 @@ const DEFAULT_STATE = Object.freeze({
   volume: 100,
   muted: false,
   eqEnabled: false,
-  analyzerEnabled: false,
-  eqDirty: false,
   eqGains: Object.freeze(Array(EQ_BAND_COUNT).fill(0)),
   selectedPreset: "Flat"
 });
 
 const elements = {
   processingToggle: document.querySelector("#processing-toggle"),
-  analyzerToggle: document.querySelector("#analyzer-toggle"),
-  analyzerState: document.querySelector("#analyzer-state"),
   audioControls: document.querySelector("#audio-controls"),
   volumeSlider: document.querySelector("#volume-slider"),
   volumeOutput: document.querySelector("#volume-output"),
@@ -55,24 +51,6 @@ let customPresets = [];
 let presetBusy = false;
 let presetEditor = null;
 let presetMessageTimer;
-let analyzerBusy = false;
-let popupClosed = false;
-const spectrum = new SpectrumView(
-  document.querySelector("#spectrum-canvas"),
-  document.querySelector("#spectrum-status"),
-  // Direct local request: no worker relay, no capture creation, one in flight.
-  () => chrome.runtime.sendMessage({ target: "offscreen", type: "GET_SPECTRUM", tabId: currentTabId })
-);
-
-function renderAnalyzer() {
-  elements.analyzerToggle.checked = currentState.analyzerEnabled;
-  elements.analyzerToggle.disabled = busy || analyzerBusy || !currentState.enabled;
-  elements.analyzerState.textContent = currentState.analyzerEnabled ? "ON" : "OFF";
-  const active = currentState.enabled && currentState.analyzerEnabled && !busy && !analyzerBusy
-    && !popupClosed && !document.hidden;
-  spectrum.update(active, currentState.analyzerEnabled
-    ? "Inactive · audio processing off or popup paused" : "Analyzer off");
-}
 
 function showPresetMessage(text = "", error = false) {
   clearTimeout(presetMessageTimer);
@@ -101,8 +79,7 @@ function renderPresetControls() {
   const available = Object.hasOwn(EQ_PRESETS, currentState.selectedPreset) || selected;
   elements.presetSelect.value = available ? currentState.selectedPreset : "Custom";
   elements.presetSelect.disabled = busy || eqBusy || currentTabId === null;
-  elements.savePreset.disabled = busy || eqBusy || presetBusy || !currentState.eqDirty
-    || currentState.selectedPreset !== "Custom" || !validPresetGains(currentState.eqGains);
+  elements.savePreset.disabled = busy || eqBusy || presetBusy || !validPresetGains(currentState.eqGains);
   elements.renamePreset.disabled = presetBusy || !selected;
   elements.deletePreset.disabled = presetBusy || !selected;
   elements.confirmPreset.disabled = presetBusy;
@@ -127,7 +104,6 @@ async function loadCustomPresets() {
 
 function openPresetEditor(action) {
   if (presetBusy) return;
-  if (action === "SAVE" && elements.savePreset.disabled) return;
   const selected = customPresets.find((preset) => preset.id === currentState.selectedPreset);
   if (action !== "SAVE" && !selected) return;
   presetEditor = { action, id: selected?.id, gains: [...currentState.eqGains] };
@@ -148,7 +124,7 @@ function closePresetEditor() {
   presetEditor = null;
   elements.presetEditor.hidden = true;
   const trigger = action === "RENAME" ? elements.renamePreset : action === "DELETE" ? elements.deletePreset : elements.savePreset;
-  (trigger.disabled ? elements.presetSelect : trigger).focus();
+  (trigger.disabled ? elements.savePreset : trigger).focus();
 }
 
 async function commitPreset(event) {
@@ -205,8 +181,6 @@ function render(state = currentState) {
     volume: Number.isFinite(state.volume) ? state.volume : 100,
     muted: Boolean(state.muted),
     eqEnabled: Boolean(state.eqEnabled),
-    analyzerEnabled: Boolean(state.analyzerEnabled),
-    eqDirty: Boolean(state.eqDirty),
     eqGains: normalizedEqGains(state.eqGains),
     selectedPreset: typeof state.selectedPreset === "string" ? state.selectedPreset : "Flat"
   };
@@ -225,7 +199,6 @@ function render(state = currentState) {
   elements.equalizerState.textContent = currentState.eqEnabled ? "ON" : "OFF";
   elements.equalizerControls.disabled = busy || eqBusy || !currentState.enabled || !currentState.eqEnabled;
   renderPresetControls();
-  renderAnalyzer();
   elements.equalizerBands.forEach((slider, index) => {
     const gain = currentState.eqGains[index];
     slider.value = String(gain);
@@ -407,7 +380,7 @@ elements.equalizerBands.forEach((slider) => {
     const gain = Number(slider.value);
     const eqGains = [...currentState.eqGains];
     eqGains[bandIndex] = gain;
-    currentState = { ...currentState, eqGains, selectedPreset: "Custom", eqDirty: true };
+    currentState = { ...currentState, eqGains, selectedPreset: "Custom" };
     renderPresetControls();
     const output = slider.parentElement.querySelector("output");
     output.value = formatDb(gain);
@@ -419,27 +392,6 @@ elements.equalizerBands.forEach((slider) => {
 
 elements.presetSelect.addEventListener("change", () => {
   void applyEqualizerPreset(elements.presetSelect.value);
-});
-
-elements.analyzerToggle.addEventListener("change", async () => {
-  analyzerBusy = true;
-  currentState.analyzerEnabled = elements.analyzerToggle.checked;
-  renderAnalyzer(); // OFF cancels rendering immediately, before messaging.
-  try {
-    render(await sendCommand("SET_ANALYZER_ENABLED", { analyzerEnabled: currentState.analyzerEnabled }));
-  } catch (error) {
-    showMessage(error.message);
-    await refreshState();
-  } finally {
-    analyzerBusy = false;
-    renderAnalyzer();
-  }
-});
-
-document.addEventListener("visibilitychange", renderAnalyzer);
-window.addEventListener("pagehide", () => {
-  popupClosed = true;
-  spectrum.stop();
 });
 
 elements.savePreset.addEventListener("click", () => openPresetEditor("SAVE"));

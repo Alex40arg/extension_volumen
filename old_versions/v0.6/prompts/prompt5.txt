@@ -1,0 +1,535 @@
+Lee completamente `DEVELOPMENT_SPEC.md` y `README.md` antes de modificar el proyecto.
+
+La versión actual v0.3 funciona correctamente.
+
+Quiero realizar una iteración pequeña y controlada sobre el ecualizador.
+
+Objetivo: mejorar la distribución de frecuencias y ampliar ligeramente el rango audible del EQ, sin cambiar todavía la orientación visual de los sliders ni agregar presets.
+
+---
+
+# 1. Backup obligatorio
+
+Antes de modificar los archivos activos:
+
+1. Guarda un snapshot completo de la versión actual en:
+
+`old_versions/v0.3/`
+
+2. Respeta las reglas de backup de `DEVELOPMENT_SPEC.md`.
+
+3. No sobrescribas snapshots existentes.
+
+4. No copies `old_versions` dentro del backup.
+
+5. Después del snapshot, modifica solamente los archivos activos.
+
+---
+
+# 2. Nueva distribución del ecualizador
+
+Reemplaza el ecualizador actual de 6 bandas por un ecualizador de **7 bandas**.
+
+Usa estas frecuencias:
+
+```text
+30 Hz
+90 Hz
+300 Hz
+1 kHz
+3 kHz
+8 kHz
+15 kHz
+```
+
+La banda de `1 kHz` debe quedar exactamente en el centro de la disposición lógica y visual de las siete bandas.
+
+Orden:
+
+```text
+30 Hz
+90 Hz
+300 Hz
+1 kHz
+3 kHz
+8 kHz
+15 kHz
+```
+
+---
+
+# 3. Rango de ganancia
+
+Mantener:
+
+```text
+-12 dB a +12 dB
+```
+
+Valor inicial de cada banda:
+
+```text
+0 dB
+```
+
+Paso:
+
+```text
+1 dB
+```
+
+No ampliar todavía el rango de ganancia.
+
+---
+
+# 4. Tipos de filtro
+
+Mantener una implementación musical y suave.
+
+Usa preferentemente:
+
+```text
+30 Hz   → lowshelf
+90 Hz   → peaking
+300 Hz  → peaking
+1 kHz   → peaking
+3 kHz   → peaking
+8 kHz   → peaking
+15 kHz  → highshelf
+```
+
+Para las bandas `peaking`, usa un valor de Q moderado y coherente.
+
+La versión actual utiliza una respuesta amplia y suave. Mantén esa filosofía.
+
+No aumentes agresivamente Q.
+
+Si actualmente se usa aproximadamente `Q = 1`, puedes mantenerlo salvo que exista una razón técnica clara para ajustarlo ligeramente.
+
+Documenta brevemente cualquier cambio de Q.
+
+---
+
+# 5. Cadena DSP
+
+Actualizar la cadena existente para incluir las siete bandas.
+
+Conceptualmente:
+
+```text
+SourceNode
+   ↓
+30 Hz
+   ↓
+90 Hz
+   ↓
+300 Hz
+   ↓
+1 kHz
+   ↓
+3 kHz
+   ↓
+8 kHz
+   ↓
+15 kHz
+   ↓
+Master Gain
+   ↓
+Destination
+```
+
+No cambiar la ubicación del master volume.
+
+El control de volumen existente debe seguir funcionando exactamente igual.
+
+---
+
+# 6. Estado inicial
+
+Mantener todas las reglas actuales:
+
+```text
+Audio processing OFF por defecto
+Volume 100%
+EQ OFF
+Todas las bandas 0 dB
+Mute OFF
+```
+
+Activar Audio Processing no debe producir un cambio tonal inesperado.
+
+Activar EQ con todas las bandas en 0 dB debe sonar prácticamente igual que EQ OFF.
+
+---
+
+# 7. Estado independiente por pestaña
+
+Mantener independencia completa.
+
+Ejemplo:
+
+```text
+Tab A:
+EQ ON
+30 Hz +5
+300 Hz -2
+15 kHz +4
+
+Tab B:
+EQ ON
+1 kHz -3
+
+Tab C:
+EQ OFF
+```
+
+Ningún cambio debe propagarse entre pestañas.
+
+---
+
+# 8. Flat
+
+Actualizar el botón `Flat` para trabajar con las siete bandas.
+
+Debe devolver:
+
+```text
+30 Hz   0 dB
+90 Hz   0 dB
+300 Hz  0 dB
+1 kHz   0 dB
+3 kHz   0 dB
+8 kHz   0 dB
+15 kHz  0 dB
+```
+
+No modificar:
+
+* master volume;
+* mute;
+* Audio Processing;
+* estado ON/OFF del EQ.
+
+---
+
+# 9. Interfaz
+
+Por ahora conservar sliders horizontales.
+
+NO implementar todavía sliders verticales.
+
+Agregar únicamente la séptima banda y actualizar labels/frecuencias.
+
+Mantener la interfaz compacta y legible.
+
+Es aceptable que aumente ligeramente el scroll vertical.
+
+No rediseñar el popup completo.
+
+---
+
+# 10. Sliders en tiempo real
+
+Mantener:
+
+* evento `input`;
+* actualización inmediata;
+* display actual en dB;
+* transición suave;
+* sin clicks perceptibles.
+
+Ejemplos visuales:
+
+```text
+30 Hz     +4 dB
+90 Hz     +2 dB
+300 Hz    -2 dB
+1 kHz     -3 dB
+3 kHz     0 dB
+8 kHz     +2 dB
+15 kHz    +4 dB
+```
+
+---
+
+# 11. Suavizado
+
+Mantener el mecanismo existente de rampas de AudioParam.
+
+No introducir cambios bruscos al:
+
+* mover bandas;
+* pulsar Flat;
+* activar/desactivar EQ.
+
+Mantener una transición corta aproximadamente de 10–30 ms.
+
+---
+
+# 12. Bypass
+
+Mantener el comportamiento actual.
+
+EQ OFF debe producir una respuesta plana.
+
+Al volver EQ ON dentro de la misma sesión, deben recuperarse los valores configurados anteriormente.
+
+Ejemplo:
+
+```text
+30 Hz +5
+90 Hz +3
+1 kHz -2
+15 kHz +4
+
+EQ OFF
+→ sonido plano
+
+EQ ON
+→ recuperar curva anterior
+```
+
+---
+
+# 13. V-shape manual
+
+No agregar todavía un preset automático.
+
+Sin embargo, verifica que esta nueva distribución permita crear manualmente una curva tipo V, por ejemplo:
+
+```text
+30 Hz   +4
+90 Hz   +3
+300 Hz  -1
+1 kHz   -3
+3 kHz   -1
+8 kHz   +2
+15 kHz  +4
+```
+
+No codifiques estos valores como preset.
+
+Este ejemplo es solo para verificar que las bandas se comporten de manera musical.
+
+---
+
+# 14. Robustez
+
+Mantener intactas todas las mejoras de v0.2 y v0.3:
+
+* cola por pestaña;
+* cleanup idempotente;
+* manejo de streams terminados;
+* estados transitorios;
+* pestañas no capturables;
+* errores claros;
+* popup sincronizado;
+* múltiples sesiones;
+* mute;
+* reset;
+* slider de volumen en tiempo real.
+
+No introducir regresiones.
+
+---
+
+# 15. Posible estado bloqueado de controles
+
+Durante una prueba anterior ocurrió una sola vez que el slider de volumen mostró temporalmente el cursor/icono de control deshabilitado después de usar el EQ.
+
+No se pudo reproducir de forma consistente.
+
+Revisa la lógica de:
+
+* `busy`;
+* `eqBusy`;
+* fieldsets o controles `disabled`;
+* finalización de promesas;
+* bloques `finally`;
+
+para asegurar que ningún control permanezca deshabilitado accidentalmente después de completar una operación.
+
+No hagas un refactor grande si no encuentras un problema real.
+
+Simplemente verifica que todos los estados transitorios se restauren correctamente.
+
+---
+
+# 16. Permisos
+
+No agregar permisos nuevos.
+
+Mantener exclusivamente:
+
+```text
+offscreen
+tabCapture
+```
+
+---
+
+# 17. Privacidad
+
+Mantener:
+
+* cero telemetría;
+* cero analytics;
+* cero conexiones externas;
+* cero scripts remotos;
+* cero acceso al contenido de páginas;
+* cero historial;
+* cero cookies.
+
+---
+
+# 18. Dependencias
+
+No agregar librerías ni frameworks.
+
+Seguir usando:
+
+* Vanilla JavaScript
+* Vanilla HTML
+* Vanilla CSS
+* Chrome APIs
+* Web Audio API
+
+---
+
+# 19. Manifest
+
+Actualizar versión a:
+
+`0.3.1`
+
+Mantener:
+
+```text
+minimum_chrome_version: 116
+```
+
+No modificar permisos ni nombre.
+
+---
+
+# 20. README
+
+Actualizar brevemente:
+
+* versión `v0.3.1`;
+* ecualizador de 7 bandas;
+* frecuencias:
+
+  * 30 Hz
+  * 90 Hz
+  * 300 Hz
+  * 1 kHz
+  * 3 kHz
+  * 8 kHz
+  * 15 kHz
+* rango ±12 dB.
+
+Mantener advertencia sobre clipping cuando se realizan boosts importantes.
+
+---
+
+# 21. Pruebas lógicas
+
+Antes de finalizar revisar:
+
+### A. Flat
+
+Todas las bandas 0 dB.
+
+EQ ON/OFF debe ser prácticamente transparente.
+
+### B. Graves
+
+Subir:
+
+```text
+30 Hz +6
+90 Hz +4
+```
+
+Debe aumentar principalmente contenido grave.
+
+### C. Medios
+
+Reducir:
+
+```text
+1 kHz -5
+```
+
+Debe percibirse reducción de presencia/media sin cambiar otras bandas.
+
+### D. Agudos
+
+Subir:
+
+```text
+8 kHz +4
+15 kHz +5
+```
+
+Debe aumentar presencia/aire superior.
+
+### E. V suave
+
+Probar:
+
+```text
+30 Hz   +4
+90 Hz   +3
+300 Hz  -1
+1 kHz   -3
+3 kHz   -1
+8 kHz   +2
+15 kHz  +4
+```
+
+Verificar que todas las bandas respondan independientemente.
+
+### F. Flat después de V
+
+Pulsar Flat.
+
+Todas las bandas deben volver inmediatamente a 0 dB sin modificar master volume.
+
+### G. Dos pestañas
+
+Crear curvas distintas en dos tabs.
+
+Confirmar independencia completa.
+
+### H. EQ OFF/ON
+
+Configurar curva.
+
+EQ OFF.
+
+EQ ON.
+
+Confirmar recuperación de valores.
+
+### I. Slider de volumen
+
+Después de utilizar intensamente el EQ, mover el slider de volumen.
+
+Debe permanecer habilitado y responder normalmente.
+
+---
+
+# 22. Al finalizar
+
+Devuélveme un resumen breve indicando:
+
+* archivos modificados;
+* confirmación del backup `old_versions/v0.3/`;
+* nueva lista de frecuencias;
+* tipo de filtro de cada banda;
+* Q utilizado;
+* cualquier cambio realizado en lógica de estados `busy/eqBusy`;
+* confirmación de que permisos y privacidad permanecen iguales;
+* pasos concretos para probar manualmente esta versión en Chrome.

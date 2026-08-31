@@ -4,13 +4,13 @@ const { createHarness, source, clone } = require('./harness.cjs');
 
 (async () => {
   const manifest = JSON.parse(source('manifest.json'));
-  assert.equal(manifest.version, '0.7.0');
+  assert.equal(manifest.version, '0.6.0');
   assert.equal(manifest.minimum_chrome_version, '116');
   assert.deepEqual(manifest.permissions, ['offscreen', 'tabCapture', 'storage']);
   assert.equal(manifest.host_permissions, undefined);
   for (const file of ['popup/popup.js', 'background/service-worker.js', 'background/presets.js', 'shared/presets.js', 'audio/offscreen.js']) {
     new vm.Script(source(file));
-    assert.doesNotMatch(source(file), /fetch\s*\(|XMLHttpRequest|WebSocket|storage\.sync|innerHTML/);
+    assert.doesNotMatch(source(file), /fetch\s*\(|XMLHttpRequest|WebSocket|storage\.sync|innerHTML|AnalyserNode|createAnalyser/);
   }
   for (const file of ['popup/popup.js', 'popup/popup.html', 'popup/popup.css', 'background/service-worker.js']) {
     assert.doesNotMatch(source(file), /flat-button|flatButton|setFlatEqualizer|FLAT_EQ/);
@@ -21,7 +21,7 @@ const { createHarness, source, clone } = require('./harness.cjs');
     assert.equal(result.ok, true, JSON.stringify(result));
     return result;
   };
-  const expectedDefault = { enabled: false, volume: 100, muted: false, eqEnabled: false, analyzerEnabled: false, eqDirty: false, eqGains: [0,0,0,0,0,0,0], selectedPreset: 'Flat' };
+  const expectedDefault = { enabled: false, volume: 100, muted: false, eqEnabled: false, eqGains: [0,0,0,0,0,0,0], selectedPreset: 'Flat' };
   assert.deepEqual(clone((await command('GET_STATE')).state), expectedDefault);
   await command('APPLY_EQ_PRESET', { preset: 'Soft V' });
   assert.equal(h.state.captures, 0, 'Loading while OFF never captures audio');
@@ -102,8 +102,7 @@ const { createHarness, source, clone } = require('./harness.cjs');
   const original = source('old_versions/v0.5/audio/offscreen.js');
   const originalContext = vm.createContext({ chrome: { runtime: { onMessage: { addListener() {} } } } });
   vm.runInContext(original, originalContext);
-  // v0.7 adds analyser lifecycle and dirty state; the audible DSP stays unchanged.
-  for (const name of ['rampAudioParam','applyGain','applyEq','setVolume','setMuted','setEqEnabled']) {
+  for (const name of ['startSession','destroySession','rampAudioParam','applyGain','applyEq','setVolume','setMuted','setEqEnabled','setEqBand']) {
     assert.equal(vm.runInContext(`${name}.toString()`, h.audio), vm.runInContext(`${name}.toString()`, originalContext), `${name} unchanged`);
   }
   assert.deepEqual(clone(vm.runInContext('EQ_PRESETS', h.audio)), clone(vm.runInContext('EQ_PRESETS', originalContext)));
