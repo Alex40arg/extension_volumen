@@ -1,0 +1,520 @@
+Lee completamente `DEVELOPMENT_SPEC.md` y `README.md` antes de realizar cambios.
+
+La versión actual v0.1.1 funciona correctamente y ya incorpora:
+
+* Control de volumen independiente por pestaña.
+* Activación OFF por defecto.
+* Gain inicial 100%.
+* Slider 0–200%.
+* Actualización de volumen en tiempo real mientras se mueve el slider.
+* Transiciones suaves de gain para evitar clicks.
+* Reset 100%.
+* Mute reversible.
+* Procesamiento persistente aunque se cierre el popup.
+* Cleanup al apagar o cerrar pestañas.
+
+Quiero implementar ahora la **versión v0.2**, enfocada exclusivamente en:
+
+* robustez;
+* manejo de errores;
+* claridad de estado;
+* pequeños refinamientos de UX.
+
+NO implementar todavía ecualizador, presets, perfiles por sitio, visualizador ni persistencia entre reinicios de Chrome.
+
+---
+
+# 1. Backup obligatorio
+
+Antes de modificar los archivos activos:
+
+1. Guarda un snapshot completo de la versión actual en:
+
+`old_versions/v0.1.1/`
+
+2. Respeta las reglas de backup de `DEVELOPMENT_SPEC.md`.
+
+3. No sobrescribas ningún snapshot existente.
+
+4. No copies `old_versions` dentro del backup.
+
+5. Después del snapshot, realiza los cambios solamente sobre los archivos activos.
+
+---
+
+# 2. Objetivo principal de v0.2
+
+La extensión debe manejar correctamente situaciones normales y anómalas sin quedar en estados inconsistentes.
+
+Debe fallar de forma segura, mostrar mensajes claros y recuperar correctamente el estado de la interfaz.
+
+No cambies la arquitectura general `popup + service worker + offscreen audio document`.
+
+---
+
+# 3. Manejo de pestañas no capturables
+
+Revisa y mejora el comportamiento cuando el usuario intenta activar la extensión en una pestaña que Chrome no permite capturar.
+
+Ejemplos:
+
+* `chrome://...`
+* Chrome Web Store
+* páginas internas del navegador
+* pestañas protegidas o no capturables
+
+En esos casos:
+
+* no debe producirse ninguna excepción no controlada;
+* el toggle debe volver a OFF;
+* los controles deben quedar deshabilitados;
+* debe mostrarse un mensaje breve y claro.
+
+Ejemplo de mensaje:
+
+`This tab cannot be controlled.`
+
+No mostrar mensajes técnicos largos al usuario.
+
+Los detalles técnicos pueden registrarse en consola para desarrollo.
+
+---
+
+# 4. Pestañas sin audio
+
+Si una pestaña normal no está reproduciendo audio, la extensión puede seguir permitiendo la activación si técnicamente Chrome lo permite.
+
+No debe tratar automáticamente “no hay audio ahora” como un error.
+
+La extensión debe quedar preparada para procesar audio si la pestaña comienza a reproducirlo posteriormente.
+
+---
+
+# 5. Recuperación ante fallos de captura
+
+Si `chrome.tabCapture` falla:
+
+* limpiar cualquier estado parcial;
+* no dejar una sesión fantasma;
+* volver visualmente a OFF;
+* liberar recursos que hayan sido creados parcialmente;
+* mostrar un mensaje breve de error.
+
+Ejemplo:
+
+`Unable to start audio processing.`
+
+La siguiente tentativa de activación debe poder realizarse normalmente.
+
+---
+
+# 6. Recuperación ante finalización inesperada del stream
+
+Si Chrome finaliza inesperadamente un stream capturado:
+
+* limpiar automáticamente la sesión asociada;
+* eliminar nodos y AudioContext;
+* quitar el estado activo;
+* permitir una activación posterior limpia.
+
+Si el popup está abierto y detecta el cambio, debe reflejar correctamente el nuevo estado.
+
+Evitar errores en consola por cleanup duplicado.
+
+---
+
+# 7. Idempotencia de ON/OFF
+
+Las operaciones repetidas deben ser seguras.
+
+Ejemplos:
+
+* ON cuando ya está ON.
+* OFF cuando ya está OFF.
+* Múltiples mensajes de cleanup.
+* Cierre de pestaña mientras se está desactivando.
+* Stream terminado al mismo tiempo que se cierra la pestaña.
+
+Estas situaciones no deben:
+
+* lanzar errores;
+* crear sesiones duplicadas;
+* dejar AudioContexts vivos;
+* dejar streams activos;
+* romper otras pestañas.
+
+---
+
+# 8. Interacción rápida del usuario
+
+Mantén o mejora la protección contra condiciones de carrera cuando el usuario interactúa rápidamente.
+
+Ejemplos:
+
+```text
+ON
+OFF
+ON
+slider
+mute
+reset
+```
+
+en rápida sucesión.
+
+Las operaciones deben ejecutarse de forma coherente.
+
+Si existe una cola de operaciones, mantenla o mejora su comportamiento sin complicar innecesariamente el código.
+
+---
+
+# 9. Estado visual del popup
+
+Refina el popup para que el estado de la pestaña sea inequívoco.
+
+Cuando OFF:
+
+* mostrar claramente `OFF`;
+* slider deshabilitado;
+* Reset deshabilitado;
+* Mute deshabilitado;
+* estado inferior tipo:
+  `Not active on this tab`
+
+Cuando ON:
+
+* mostrar claramente `ON`;
+* controles habilitados;
+* porcentaje visible;
+* estado inferior tipo:
+  `Audio processing active`
+
+Cuando hay un error:
+
+* mantener OFF;
+* mostrar mensaje de error;
+* no dejar controles aparentemente activos.
+
+---
+
+# 10. Estados transitorios
+
+Evita que el usuario pueda disparar varias activaciones simultáneas mientras se está iniciando o deteniendo el procesamiento.
+
+Si es útil, introduce internamente estados como:
+
+* `starting`
+* `active`
+* `stopping`
+* `inactive`
+
+No es obligatorio mostrar esos nombres al usuario.
+
+Durante una transición, el toggle o controles relevantes pueden quedar temporalmente deshabilitados.
+
+El objetivo es impedir doble activación y estados incoherentes.
+
+---
+
+# 11. Indicador de actividad
+
+Mantén el indicador visual actual y mejora solamente si hace falta.
+
+Debe ser inmediatamente evidente si:
+
+* la pestaña actual está siendo procesada;
+* la pestaña actual está OFF;
+* ocurrió un error.
+
+No rediseñes toda la interfaz.
+
+Mantén el estilo actual salvo pequeños ajustes de claridad.
+
+---
+
+# 12. Mute y Reset
+
+Confirma que:
+
+* Reset devuelve a 100% usando la transición suave ya existente;
+* Reset no desactiva la extensión;
+* Mute conserva el volumen seleccionado;
+* Unmute vuelve exactamente al volumen anterior;
+* Reset mientras está muteado actualiza el volumen almacenado a 100%, pero debe permanecer en silencio hasta quitar Mute.
+
+Ejemplo:
+
+```text
+Volume 150%
+Mute ON
+Reset 100%
+Output sigue en silencio
+Mute OFF
+Output vuelve a 100%
+```
+
+---
+
+# 13. Slider en tiempo real
+
+Mantén el comportamiento actual:
+
+* actualización con evento `input`;
+* porcentaje visual en tiempo real;
+* gain actualizado mientras se arrastra;
+* transición suave de gain;
+* rango 0–200%;
+* paso actual sin cambios salvo necesidad técnica.
+
+No introduzcas debounce perceptible.
+
+El movimiento debe sentirse inmediato.
+
+---
+
+# 14. Cleanup completo
+
+Revisa que la limpieza de una sesión incluya correctamente:
+
+* desconexión de nodos;
+* detención de tracks;
+* cierre del AudioContext;
+* eliminación de listeners cuando sea necesario;
+* eliminación de la sesión del mapa;
+* eliminación de cualquier estado auxiliar.
+
+Cleanup debe poder llamarse más de una vez sin generar errores graves.
+
+---
+
+# 15. Varias pestañas
+
+Confirma que todas las mejoras de robustez mantienen completa independencia entre pestañas.
+
+Ejemplo:
+
+```text
+Tab A → 150%
+Tab B → 60%
+Tab C → OFF
+```
+
+Si Tab A falla o se cierra:
+
+* Tab B debe continuar funcionando normalmente;
+* Tab C debe permanecer intacta.
+
+Nunca realizar cleanup global cuando solamente falla una sesión.
+
+---
+
+# 16. Service worker y offscreen document
+
+Revisa la comunicación entre service worker y offscreen.
+
+Evita:
+
+* crear múltiples documentos offscreen innecesarios;
+* errores al intentar crear uno que ya existe;
+* mensajes dirigidos a un documento aún no preparado.
+
+Mantén una única instancia del documento offscreen cuando sea suficiente para múltiples sesiones.
+
+No destruyas el documento offscreen mientras existan sesiones activas.
+
+Si no quedan sesiones, puede mantenerse o liberarse según resulte más robusto y simple.
+
+Prioriza estabilidad sobre micro-optimizaciones.
+
+---
+
+# 17. Consola
+
+Durante funcionamiento normal:
+
+* no deben aparecer excepciones;
+* no deben aparecer promesas rechazadas sin manejar;
+* no deben aparecer warnings evitables causados por nuestra extensión.
+
+Los errores esperables pueden registrarse de forma concisa mediante `console.warn` o `console.error`.
+
+Evita logs continuos o verbosos.
+
+No implementar telemetría.
+
+---
+
+# 18. Sin persistencia entre reinicios
+
+Para v0.2 mantener:
+
+* extensión OFF al reiniciar Chrome;
+* no recordar automáticamente volumen entre sesiones del navegador;
+* no usar `storage` todavía;
+* no crear perfiles por sitio.
+
+Una activación nueva debe seguir comenzando en 100%.
+
+Esto es deliberado por seguridad auditiva.
+
+---
+
+# 19. Permisos
+
+No agregar permisos nuevos.
+
+Mantener únicamente los permisos que ya son necesarios para v0.1.1.
+
+Si crees que un nuevo permiso es imprescindible, NO lo agregues silenciosamente.
+
+Explica primero por qué sería necesario.
+
+---
+
+# 20. Sin funciones nuevas grandes
+
+NO agregar:
+
+* ecualizador;
+* presets;
+* bass boost;
+* compressor;
+* limiter;
+* visualizador;
+* spectrum analyzer;
+* memoria por sitio;
+* acceso a hostname;
+* acceso a contenido de página;
+* historial;
+* analytics;
+* networking;
+* cuentas;
+* sincronización.
+
+v0.2 es una versión de robustez y UX.
+
+---
+
+# 21. README
+
+Actualiza `README.md` al finalizar.
+
+Cambiar versión actual a:
+
+`v0.2`
+
+Añadir brevemente las mejoras:
+
+* manejo de pestañas no capturables;
+* recuperación ante errores;
+* cleanup más robusto;
+* estados de interfaz más claros;
+* protección contra interacciones rápidas;
+* mantenimiento de privacidad y permisos mínimos.
+
+No hagas el README excesivamente largo.
+
+---
+
+# 22. Versión del manifest
+
+Actualiza la versión de la extensión a:
+
+`0.2.0`
+
+No cambies el nombre de la extensión.
+
+---
+
+# 23. Validación manual sugerida
+
+Antes de terminar, revisa el código contra estos escenarios:
+
+### A. ON/OFF repetido
+
+Activar y desactivar varias veces.
+
+Debe funcionar siempre.
+
+### B. Interacción rápida
+
+ON → OFF → ON rápidamente.
+
+No deben aparecer sesiones duplicadas.
+
+### C. Slider rápido
+
+Mover rápidamente entre valores bajos y altos.
+
+No deben producirse clicks notorios ni errores.
+
+### D. Mute + Reset
+
+* volumen 150%;
+* Mute;
+* Reset;
+* Unmute;
+
+resultado esperado: 100%.
+
+### E. Pestaña protegida
+
+Intentar activar desde `chrome://extensions`.
+
+Debe fallar de forma segura y clara.
+
+### F. Cierre de pestaña
+
+Cerrar una pestaña activa.
+
+Debe limpiarse solo esa sesión.
+
+### G. Dos pestañas activas
+
+Mantener dos pestañas con diferentes volúmenes.
+
+Cerrar una.
+
+La otra debe continuar exactamente igual.
+
+### H. Popup
+
+Cerrar y reabrir el popup varias veces.
+
+Debe recuperar correctamente el estado de la pestaña actual.
+
+---
+
+# 24. Revisión final
+
+Antes de considerar la tarea terminada:
+
+1. Revisa todos los archivos modificados.
+2. Verifica que no agregaste permisos.
+3. Verifica que no agregaste dependencias.
+4. Verifica que no agregaste llamadas de red.
+5. Verifica que la extensión sigue OFF por defecto.
+6. Verifica gain inicial 1.0.
+7. Verifica independencia por pestaña.
+8. Verifica cleanup.
+9. Verifica manejo seguro de errores.
+10. Verifica que los cambios sean pequeños y enfocados.
+11. Verifica que `old_versions/v0.1.1/` haya quedado preservado.
+12. Verifica `manifest.json` con versión `0.2.0`.
+
+---
+
+# 25. Al finalizar
+
+Devuélveme un resumen breve indicando:
+
+* archivos creados;
+* archivos modificados;
+* cambios de robustez realizados;
+* cambios visuales realizados;
+* cómo manejas fallos de captura;
+* cómo manejas streams terminados inesperadamente;
+* cómo evitas condiciones de carrera;
+* confirmación de que los permisos siguen siendo los mismos;
+* confirmación de que no existen dependencias ni conexiones externas;
+* pasos concretos que debo probar manualmente en Chrome.

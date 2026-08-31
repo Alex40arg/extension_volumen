@@ -20,18 +20,7 @@ const elements = {
   equalizerControls: document.querySelector("#equalizer-controls"),
   equalizerBands: [...document.querySelectorAll("[data-eq-band]")],
   presetSelect: document.querySelector("#preset-select"),
-  factoryPresets: document.querySelector("#factory-presets"),
-  customPresets: document.querySelector("#custom-presets"),
-  savePreset: document.querySelector("#save-preset"),
-  renamePreset: document.querySelector("#rename-preset"),
-  deletePreset: document.querySelector("#delete-preset"),
-  presetEditor: document.querySelector("#preset-editor"),
-  presetEditorTitle: document.querySelector("#preset-editor-title"),
-  presetNameRow: document.querySelector("#preset-name-row"),
-  presetName: document.querySelector("#preset-name"),
-  confirmPreset: document.querySelector("#confirm-preset"),
-  cancelPreset: document.querySelector("#cancel-preset"),
-  presetMessage: document.querySelector("#preset-message"),
+  flatButton: document.querySelector("#flat-button"),
   stateBadge: document.querySelector("#state-badge"),
   status: document.querySelector("#status"),
   statusText: document.querySelector("#status-text"),
@@ -47,117 +36,6 @@ let eqRequestNumber = 0;
 let eqBusy = false;
 let transition = "";
 let currentError = "";
-let customPresets = [];
-let presetBusy = false;
-let presetEditor = null;
-let presetMessageTimer;
-
-function showPresetMessage(text = "", error = false) {
-  clearTimeout(presetMessageTimer);
-  elements.presetMessage.textContent = text;
-  elements.presetMessage.hidden = !text;
-  elements.presetMessage.dataset.error = String(error);
-  if (text && !error) presetMessageTimer = setTimeout(() => showPresetMessage(), 4500);
-}
-
-function appendPresetOption(group, value, name) {
-  const option = document.createElement("option");
-  option.value = value;
-  option.textContent = name;
-  group.append(option);
-}
-
-function updatePresetList(presets) {
-  customPresets = validatedCustomPresets(presets);
-  elements.customPresets.replaceChildren();
-  for (const preset of customPresets) appendPresetOption(elements.customPresets, preset.id, preset.name);
-  renderPresetControls();
-}
-
-function renderPresetControls() {
-  const selected = customPresets.find((preset) => preset.id === currentState.selectedPreset);
-  const available = Object.hasOwn(EQ_PRESETS, currentState.selectedPreset) || selected;
-  elements.presetSelect.value = available ? currentState.selectedPreset : "Custom";
-  elements.presetSelect.disabled = busy || eqBusy || currentTabId === null;
-  elements.savePreset.disabled = busy || eqBusy || presetBusy || !validPresetGains(currentState.eqGains);
-  elements.renamePreset.disabled = presetBusy || !selected;
-  elements.deletePreset.disabled = presetBusy || !selected;
-  elements.confirmPreset.disabled = presetBusy;
-  elements.cancelPreset.disabled = presetBusy;
-  elements.presetName.disabled = presetBusy;
-}
-
-async function presetCommand(type, data = {}) {
-  const response = await chrome.runtime.sendMessage({ target: "service-worker", type, ...data });
-  if (!response?.ok) throw new Error(response?.error || "Unable to update presets. Please try again.");
-  return response;
-}
-
-async function loadCustomPresets() {
-  try {
-    const response = await presetCommand("PRESETS_LIST");
-    updatePresetList(response.presets);
-  } catch (error) {
-    showPresetMessage(error.message, true);
-  }
-}
-
-function openPresetEditor(action) {
-  if (presetBusy) return;
-  const selected = customPresets.find((preset) => preset.id === currentState.selectedPreset);
-  if (action !== "SAVE" && !selected) return;
-  presetEditor = { action, id: selected?.id, gains: [...currentState.eqGains] };
-  showPresetMessage();
-  elements.presetEditor.hidden = false;
-  elements.presetNameRow.hidden = action === "DELETE";
-  elements.presetName.value = action === "RENAME" ? selected.name : "";
-  elements.presetEditorTitle.textContent = action === "DELETE"
-    ? `Delete “${selected.name}”? The current EQ curve will stay unchanged.`
-    : action === "RENAME" ? "Rename preset" : "Save a copy of the current curve";
-  elements.confirmPreset.textContent = { SAVE: "Save", RENAME: "Rename", DELETE: "Delete" }[action];
-  renderPresetControls();
-  (action === "DELETE" ? elements.cancelPreset : elements.presetName).focus();
-}
-
-function closePresetEditor() {
-  const action = presetEditor?.action;
-  presetEditor = null;
-  elements.presetEditor.hidden = true;
-  const trigger = action === "RENAME" ? elements.renamePreset : action === "DELETE" ? elements.deletePreset : elements.savePreset;
-  (trigger.disabled ? elements.savePreset : trigger).focus();
-}
-
-async function commitPreset(event) {
-  event.preventDefault();
-  if (presetBusy || !presetEditor) return;
-  const edit = presetEditor;
-  const result = edit.action === "DELETE" ? {} : validatePresetName(elements.presetName.value, customPresets, edit.action === "RENAME" ? edit.id : null);
-  if (result.error) {
-    showPresetMessage(result.error, true);
-    elements.presetName.focus();
-    return;
-  }
-  presetBusy = true;
-  renderPresetControls();
-  try {
-    const data = edit.action === "SAVE"
-      ? { name: result.name, gains: edit.gains, tabId: currentTabId }
-      : { id: edit.id, ...(edit.action === "RENAME" ? { name: result.name } : {}) };
-    const response = await presetCommand(`PRESETS_${edit.action}`, data);
-    updatePresetList(response.presets);
-    // Re-read the live tab; storage writes must not restore an older volume/EQ snapshot.
-    await refreshState();
-    showPresetMessage(response.warning || { SAVE: "Preset saved.", RENAME: "Preset renamed.", DELETE: "Preset deleted." }[edit.action], Boolean(response.warning));
-    presetBusy = false;
-    renderPresetControls();
-    closePresetEditor();
-  } catch (error) {
-    showPresetMessage(error.message, true);
-  } finally {
-    presetBusy = false;
-    renderPresetControls();
-  }
-}
 
 function showMessage(text = "") {
   currentError = text;
@@ -198,7 +76,7 @@ function render(state = currentState) {
   elements.equalizerToggle.disabled = busy || eqBusy || !currentState.enabled;
   elements.equalizerState.textContent = currentState.eqEnabled ? "ON" : "OFF";
   elements.equalizerControls.disabled = busy || eqBusy || !currentState.enabled || !currentState.eqEnabled;
-  renderPresetControls();
+  elements.presetSelect.value = currentState.selectedPreset;
   elements.equalizerBands.forEach((slider, index) => {
     const gain = currentState.eqGains[index];
     slider.value = String(gain);
@@ -310,6 +188,10 @@ async function setEqBand(bandIndex, gain) {
   }
 }
 
+async function setFlatEqualizer() {
+  return applyEqualizerPreset("Flat");
+}
+
 async function applyEqualizerPreset(preset) {
   eqRequestNumber += 1;
   eqBusy = true;
@@ -381,7 +263,6 @@ elements.equalizerBands.forEach((slider) => {
     const eqGains = [...currentState.eqGains];
     eqGains[bandIndex] = gain;
     currentState = { ...currentState, eqGains, selectedPreset: "Custom" };
-    renderPresetControls();
     const output = slider.parentElement.querySelector("output");
     output.value = formatDb(gain);
     output.textContent = formatDb(gain);
@@ -394,19 +275,8 @@ elements.presetSelect.addEventListener("change", () => {
   void applyEqualizerPreset(elements.presetSelect.value);
 });
 
-elements.savePreset.addEventListener("click", () => openPresetEditor("SAVE"));
-elements.renamePreset.addEventListener("click", () => openPresetEditor("RENAME"));
-elements.deletePreset.addEventListener("click", () => openPresetEditor("DELETE"));
-elements.cancelPreset.addEventListener("click", closePresetEditor);
-elements.presetEditor.addEventListener("submit", (event) => { void commitPreset(event); });
-elements.presetEditor.addEventListener("keydown", (event) => {
-  if (event.key === "Escape" && !presetBusy) {
-    event.preventDefault();
-    closePresetEditor();
-  }
-});
-chrome.storage.onChanged.addListener((changes, area) => {
-  if (area === "local" && Object.hasOwn(changes, CUSTOM_PRESETS_KEY)) void loadCustomPresets();
+elements.flatButton.addEventListener("click", () => {
+  void setFlatEqualizer();
 });
 
 chrome.runtime.onMessage.addListener((message) => {
@@ -425,9 +295,7 @@ chrome.runtime.onMessage.addListener((message) => {
 });
 
 async function initialize() {
-  for (const name of Object.keys(EQ_PRESETS)) appendPresetOption(elements.factoryPresets, name, name);
   render();
-  void loadCustomPresets();
 
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });

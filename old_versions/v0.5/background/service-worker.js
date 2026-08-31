@@ -1,5 +1,3 @@
-importScripts("../shared/presets.js", "presets.js");
-
 const OFFSCREEN_DOCUMENT_PATH = "audio/offscreen.html";
 const DEFAULT_STATE = Object.freeze({
   enabled: false,
@@ -182,16 +180,12 @@ async function handlePopupMessage(message) {
         gain: message.gain
       }));
     case "APPLY_EQ_PRESET":
-      return enqueuePresetOperation(() => enqueueForTab(tabId, async () => {
-        let gains;
-        if (!Object.hasOwn(EQ_PRESETS, message.preset)) {
-          const preset = (await readCustomPresets()).find((item) => item.id === message.preset);
-          if (!preset) throw new Error("Unknown custom preset.");
-          gains = preset.gains;
-        }
-        // Loading a curve while OFF creates only temporary settings, never a capture.
-        await ensureOffscreenDocument();
-        return updateSession("APPLY_EQ_PRESET", tabId, { preset: message.preset, gains });
+      return enqueueForTab(tabId, () => updateSession("APPLY_EQ_PRESET", tabId, {
+        preset: message.preset
+      }));
+    case "FLAT_EQ":
+      return enqueueForTab(tabId, () => updateSession("APPLY_EQ_PRESET", tabId, {
+        preset: "Flat"
       }));
     default:
       throw new Error("Unknown extension request.");
@@ -211,17 +205,6 @@ function userFacingError(error, type) {
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.target !== "service-worker" || message.type === "SESSION_ENDED") {
     return false;
-  }
-
-  if (["PRESETS_LIST", "PRESETS_SAVE", "PRESETS_RENAME", "PRESETS_DELETE"].includes(message.type)) {
-    enqueuePresetOperation(() => handlePresetRequest(message))
-      .then((result) => sendResponse({ ok: !result.error, ...result }))
-      .catch((error) => {
-        console.error("Tab Audio Control: preset storage operation failed.", error);
-        const verb = { PRESETS_LIST: "load", PRESETS_SAVE: "save", PRESETS_RENAME: "rename", PRESETS_DELETE: "delete" }[message.type];
-        sendResponse({ ok: false, error: `Unable to ${verb} preset${message.type === "PRESETS_LIST" ? "s" : ""}. Please try again.` });
-      });
-    return true;
   }
 
   handlePopupMessage(message)

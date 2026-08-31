@@ -10,6 +10,13 @@ const EQ_BANDS = Object.freeze([
   Object.freeze({ frequency: 15000, type: "highshelf" })
 ]);
 const DEFAULT_EQ_GAINS = Object.freeze(EQ_BANDS.map(() => 0));
+const EQ_PRESETS = Object.freeze({
+  Flat: Object.freeze([0, 0, 0, 0, 0, 0, 0]),
+  "Soft V": Object.freeze([4, 3, -1, -3, -1, 2, 4]),
+  Bass: Object.freeze([6, 5, 2, 0, -1, 0, 0]),
+  Voice: Object.freeze([-4, -2, 0, 3, 4, 1, -1]),
+  Treble: Object.freeze([-1, 0, 0, 0, 2, 5, 6])
+});
 const PARAM_RAMP_SECONDS = 0.02;
 const sessions = new Map();
 const tabSettings = new Map();
@@ -301,22 +308,21 @@ function setEqBand(tabId, bandIndexValue, gainValue) {
   return publicState(tabId);
 }
 
-function applyEqPreset(tabId, preset, customGains) {
-  const gains = Object.hasOwn(EQ_PRESETS, preset) ? EQ_PRESETS[preset] : customGains;
-  if ((!Object.hasOwn(EQ_PRESETS, preset) && !CUSTOM_PRESET_ID.test(preset)) || !validPresetGains(gains)) {
-    throw new Error("A valid equalizer preset is required.");
+function applyEqPreset(tabId, preset) {
+  if (!Object.hasOwn(EQ_PRESETS, preset)) {
+    throw new Error("A valid factory equalizer preset is required.");
   }
 
+  const session = requireSession(tabId);
   const settings = getSettings(tabId, true);
-  settings.eqGains = [...gains];
+  settings.eqGains = [...EQ_PRESETS[preset]];
   settings.selectedPreset = preset;
-  const session = sessions.get(tabId);
-  if (session) applyEq(session);
+  applyEq(session);
   return publicState(tabId);
 }
 
 async function handleMessage(message) {
-  if (!Number.isInteger(message.tabId) && !["GET_SESSION_COUNT", "PING", "FORGET_PRESET"].includes(message.type)) {
+  if (!Number.isInteger(message.tabId) && !["GET_SESSION_COUNT", "PING"].includes(message.type)) {
     throw new Error("A valid tab ID is required.");
   }
 
@@ -343,21 +349,7 @@ async function handleMessage(message) {
     case "SET_EQ_BAND":
       return { state: setEqBand(message.tabId, message.bandIndex, message.gain) };
     case "APPLY_EQ_PRESET":
-      return { state: applyEqPreset(message.tabId, message.preset, message.gains) };
-    case "MARK_SAVED_PRESET": {
-      const settings = getSettings(message.tabId, true);
-      // Saving never re-applies audio or overwrites edits made while storage was busy.
-      if (CUSTOM_PRESET_ID.test(message.preset) && validPresetGains(message.gains)
-          && settings.eqGains.every((gain, index) => gain === message.gains[index])) {
-        settings.selectedPreset = message.preset;
-      }
-      return { state: publicState(message.tabId) };
-    }
-    case "FORGET_PRESET":
-      for (const settings of tabSettings.values()) {
-        if (settings.selectedPreset === message.preset) settings.selectedPreset = "Custom";
-      }
-      return {};
+      return { state: applyEqPreset(message.tabId, message.preset) };
     case "GET_SESSION_COUNT":
       return { sessionCount: sessions.size };
     default:

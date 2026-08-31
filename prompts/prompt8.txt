@@ -1,0 +1,1061 @@
+Lee completamente `DEVELOPMENT_SPEC.md` y `README.md` antes de modificar el proyecto.
+
+La versión actual `v0.5` funciona correctamente y ya incluye:
+
+* layout horizontal;
+* identidad visual azul / rojo / blanco;
+* Audio Processing ON/OFF;
+* volumen independiente por pestaña;
+* master volume 0–200%;
+* Reset 100%;
+* Mute;
+* ecualizador de 7 bandas;
+* EQ ON/OFF;
+* presets de fábrica:
+
+  * Flat
+  * Soft V
+  * Bass
+  * Voice
+  * Treble
+* detección de estado `Custom`;
+* conservación temporal de la curva EQ al apagar Audio Processing;
+* restauración del estado EQ por pestaña;
+* master volume siempre vuelve a 100% al reactivar.
+
+Quiero implementar ahora la **versión v0.6**.
+
+Objetivos principales:
+
+1. Agregar presets personalizados guardables por el usuario.
+2. Persistir dichos presets mediante `chrome.storage.local`.
+3. Permitir guardar, cargar, renombrar y eliminar presets personalizados.
+4. Mantener intactos los presets de fábrica.
+5. Eliminar el botón `Flat` redundante.
+6. Mantener `Flat` únicamente como preset dentro del selector.
+7. No implementar todavía spectrum analyzer.
+
+---
+
+# 1. Backup obligatorio
+
+Antes de modificar los archivos activos:
+
+1. Guarda un snapshot completo de la versión actual en:
+
+`old_versions/v0.5/`
+
+2. Respeta las reglas de backup de `DEVELOPMENT_SPEC.md`.
+
+3. No sobrescribas snapshots existentes.
+
+4. No copies `old_versions` dentro del backup.
+
+5. Después del snapshot, modifica solamente los archivos activos.
+
+---
+
+# 2. Nuevo permiso: storage
+
+Esta versión introduce persistencia local real para presets personalizados.
+
+Agregar explícitamente el permiso:
+
+```text
+storage
+```
+
+El `manifest.json` debe quedar con:
+
+```text
+offscreen
+tabCapture
+storage
+```
+
+No agregar ningún otro permiso.
+
+Documentar en README que `storage` se utiliza exclusivamente para guardar localmente los presets creados por el usuario.
+
+No usar sincronización cloud.
+
+No usar `chrome.storage.sync`.
+
+Usar:
+
+```text
+chrome.storage.local
+```
+
+---
+
+# 3. Privacidad de storage
+
+Persistir únicamente información relacionada con presets personalizados.
+
+Ejemplo conceptual:
+
+```text
+customPresets = [
+    {
+        id,
+        name,
+        gains: [ ...7 valores... ]
+    }
+]
+```
+
+No guardar:
+
+* URLs;
+* hostnames;
+* historial;
+* tab IDs persistentes;
+* contenido de páginas;
+* títulos de pestañas;
+* datos personales;
+* master volume;
+* estado mute;
+* navegación.
+
+La persistencia debe limitarse a:
+
+* nombre del preset;
+* valores de las 7 bandas;
+* identificador interno si hace falta.
+
+---
+
+# 4. Presets de fábrica
+
+Mantener exactamente los presets existentes:
+
+* Flat
+* Soft V
+* Bass
+* Voice
+* Treble
+
+Estos presets son internos y NO deben almacenarse en `chrome.storage.local`.
+
+No deben poder:
+
+* renombrarse;
+* borrarse;
+* sobrescribirse.
+
+---
+
+# 5. Presets personalizados
+
+El usuario debe poder guardar la curva EQ actual con un nombre propio.
+
+Ejemplos:
+
+```text
+Alex V
+Auriculares
+Parlantes PC
+Rock suave
+Voces graves
+```
+
+Cada preset personalizado debe almacenar:
+
+```text
+name
+30 Hz
+90 Hz
+300 Hz
+1 kHz
+3 kHz
+8 kHz
+15 kHz
+```
+
+Opcionalmente puede incluir:
+
+```text
+id
+createdAt
+updatedAt
+```
+
+solo si resulta útil.
+
+No almacenar información innecesaria.
+
+---
+
+# 6. Guardar preset
+
+Agregar un control claro:
+
+`Save preset`
+
+Al pulsarlo:
+
+* tomar los valores actuales de las 7 bandas;
+* pedir un nombre;
+* validar el nombre;
+* guardar el preset en `chrome.storage.local`;
+* actualizar inmediatamente la lista de presets;
+* marcar el nuevo preset como seleccionado.
+
+Puede implementarse:
+
+* pequeño input inline;
+* diálogo compacto dentro del popup;
+* modal simple local;
+
+sin usar librerías externas.
+
+Evitar `prompt()` del navegador si perjudica demasiado la UX, aunque puede usarse temporalmente si la alternativa agrega demasiada complejidad.
+
+Preferir una solución integrada en la interfaz.
+
+---
+
+# 7. Validación de nombres
+
+Los nombres deben:
+
+* no estar vacíos;
+* ignorar espacios al principio/final;
+* tener longitud máxima razonable;
+* no duplicar nombres de presets de fábrica;
+* evitar duplicados ambiguos entre presets personalizados.
+
+Longitud sugerida máxima:
+
+```text
+30 caracteres
+```
+
+Comparación de duplicados preferentemente case-insensitive.
+
+Ejemplo:
+
+```text
+"Alex V"
+```
+
+y:
+
+```text
+"alex v"
+```
+
+deberían considerarse el mismo nombre.
+
+Mostrar mensaje claro si existe conflicto.
+
+---
+
+# 8. Selector de presets
+
+El selector debe incluir:
+
+```text
+Factory presets
+    Flat
+    Soft V
+    Bass
+    Voice
+    Treble
+
+Custom presets
+    Alex V
+    Auriculares
+    Rock suave
+```
+
+Si `<select>` soporta bien la interfaz actual, pueden usarse `<optgroup>`.
+
+Ejemplo conceptual:
+
+```html
+<optgroup label="Factory">
+...
+</optgroup>
+
+<optgroup label="My presets">
+...
+</optgroup>
+```
+
+Mantener el selector compacto.
+
+---
+
+# 9. Cargar preset personalizado
+
+Al seleccionar un preset personalizado:
+
+1. cargar sus 7 valores;
+2. mover visualmente los sliders;
+3. aplicar los valores al DSP si EQ está activo;
+4. mantener master volume;
+5. mantener mute;
+6. mantener Audio Processing;
+7. mantener estado EQ ON/OFF.
+
+Debe comportarse igual que un preset de fábrica.
+
+---
+
+# 10. Estado Custom
+
+Mantener comportamiento actual:
+
+Si el usuario modifica manualmente una banda después de cargar cualquier preset:
+
+```text
+selectedPreset → Custom
+```
+
+`Custom` representa una curva no guardada o modificada manualmente.
+
+No almacenar automáticamente los cambios.
+
+El usuario debe pulsar `Save preset` si quiere conservarlos.
+
+---
+
+# 11. Guardar Custom
+
+Si el estado actual es `Custom`, permitir guardarlo normalmente mediante:
+
+`Save preset`
+
+Después de guardarlo:
+
+```text
+Preset: <nombre elegido>
+```
+
+debe quedar seleccionado.
+
+---
+
+# 12. Renombrar preset
+
+Agregar función:
+
+`Rename`
+
+Solo disponible para presets personalizados.
+
+No permitir renombrar:
+
+* Flat;
+* Soft V;
+* Bass;
+* Voice;
+* Treble;
+* Custom.
+
+Al renombrar:
+
+* validar nuevo nombre;
+* actualizar `chrome.storage.local`;
+* actualizar selector;
+* mantener preset seleccionado;
+* no alterar sus valores.
+
+---
+
+# 13. Eliminar preset
+
+Agregar función:
+
+`Delete`
+
+Solo disponible para presets personalizados.
+
+Antes de borrar, solicitar confirmación clara.
+
+Puede usarse una confirmación local sencilla.
+
+Después de borrar:
+
+* eliminar de `chrome.storage.local`;
+* actualizar selector;
+* mantener la curva actual en sliders;
+* cambiar estado seleccionado a `Custom` si la curva sigue aplicada.
+
+No cambiar automáticamente a Flat, porque borrar el preset no significa que el usuario quiera perder la curva que estaba escuchando.
+
+Ejemplo:
+
+```text
+Preset Alex V cargado
+Delete Alex V
+```
+
+Resultado:
+
+```text
+curva permanece
+selectedPreset → Custom
+```
+
+---
+
+# 14. Eliminar botón Flat redundante
+
+Eliminar completamente el botón `Flat` existente de la interfaz.
+
+Eliminar también:
+
+* markup asociado;
+* estilos CSS exclusivos;
+* listeners JS exclusivos;
+* referencias innecesarias.
+
+La función Flat seguirá disponible exclusivamente como preset:
+
+```text
+Preset → Flat
+```
+
+No mantener dos caminos distintos para la misma función.
+
+---
+
+# 15. Ajuste visual del área de presets
+
+Aprovechar el espacio liberado por el botón Flat.
+
+Organizar de forma compacta algo similar a:
+
+```text
+Preset
+[ Soft V ▼ ]
+
+[ Save ] [ Rename ] [ Delete ]
+```
+
+o una distribución equivalente.
+
+Mantener coherencia con la interfaz actual.
+
+No rediseñar todo el popup.
+
+---
+
+# 16. Estados de botones
+
+`Save`:
+
+* disponible cuando exista una curva válida;
+* puede utilizarse con Factory preset o Custom para guardar una copia personalizada.
+
+`Rename`:
+
+* habilitado solo si el preset seleccionado es personalizado.
+
+`Delete`:
+
+* habilitado solo si el preset seleccionado es personalizado.
+
+Factory preset seleccionado:
+
+```text
+Rename disabled
+Delete disabled
+```
+
+Custom preset guardado seleccionado:
+
+```text
+Rename enabled
+Delete enabled
+```
+
+Estado `Custom` no guardado:
+
+```text
+Rename disabled
+Delete disabled
+Save enabled
+```
+
+---
+
+# 17. Guardar copia de factory preset
+
+Debe ser posible seleccionar:
+
+```text
+Soft V
+```
+
+hacer pequeños cambios o incluso ninguno y luego:
+
+```text
+Save preset → "Mi V"
+```
+
+Esto crea un preset personalizado independiente.
+
+No modificar nunca el factory preset original.
+
+---
+
+# 18. Persistencia entre reinicios
+
+Los presets personalizados deben sobrevivir:
+
+* cierre del popup;
+* apagado de Audio Processing;
+* cierre y reapertura de Chrome;
+* reinicio del equipo;
+
+siempre que Chrome conserve los datos de la extensión.
+
+Al abrir Chrome nuevamente, el selector debe cargar presets guardados desde:
+
+```text
+chrome.storage.local
+```
+
+---
+
+# 19. Qué NO debe persistir todavía
+
+Aunque los presets sí persistan, mantener las reglas actuales para estados operativos:
+
+NO persistir automáticamente:
+
+* master volume;
+* mute;
+* EQ ON/OFF de una pestaña cerrada;
+* tab ID;
+* preset actualmente aplicado a una pestaña cerrada;
+* audio processing ON/OFF;
+* configuración por hostname.
+
+Al iniciar una pestaña nueva:
+
+```text
+Audio Processing OFF
+Volume 100%
+Mute OFF
+EQ OFF
+Flat
+```
+
+El usuario puede cargar manualmente cualquiera de sus presets guardados.
+
+---
+
+# 20. Estado EQ durante Audio OFF
+
+Mantener comportamiento v0.5.
+
+Mientras la pestaña exista:
+
+* apagar Audio Processing conserva la curva;
+* conserva preset seleccionado;
+* conserva EQ ON/OFF;
+* al reactivar:
+
+  * Volume 100%;
+  * Mute OFF;
+  * EQ y curva restaurados.
+
+Este estado temporal por pestaña sigue separado de los presets persistentes.
+
+---
+
+# 21. Arquitectura de presets
+
+Preferir una separación clara entre:
+
+```text
+factoryPresets
+customPresets
+temporary tab EQ settings
+```
+
+No mezclar todos los conceptos en una sola estructura ambigua.
+
+Conceptualmente:
+
+```text
+Factory presets
+→ constantes en código
+
+Custom presets
+→ chrome.storage.local
+
+Tab EQ settings
+→ estado temporal asociado al tabId
+```
+
+---
+
+# 22. Fuente de verdad
+
+Evitar duplicaciones inconsistentes.
+
+`chrome.storage.local` debe ser la fuente persistente de presets personalizados.
+
+La UI puede mantener una copia en memoria para rendimiento, pero debe poder reconstruirse desde storage.
+
+---
+
+# 23. Manejo de storage
+
+Todas las llamadas a storage deben:
+
+* usar `try/catch` donde corresponda;
+* manejar errores;
+* no dejar UI bloqueada;
+* mostrar mensajes claros.
+
+Ejemplo:
+
+```text
+Unable to save preset.
+```
+
+No mostrar objetos técnicos completos al usuario.
+
+Detalles técnicos pueden ir a consola.
+
+---
+
+# 24. Datos corruptos
+
+Al cargar presets desde storage:
+
+* validar estructura;
+* validar nombre;
+* validar exactamente 7 valores;
+* validar que cada gain esté dentro de -12 a +12.
+
+Si un preset almacenado es inválido:
+
+* ignorarlo de forma segura;
+* no romper el popup;
+* opcionalmente registrar warning en consola.
+
+No confiar ciegamente en datos almacenados.
+
+---
+
+# 25. IDs internos
+
+Si usas IDs para custom presets:
+
+* generar identificadores simples y locales;
+* no usar tracking IDs;
+* no usar datos personales.
+
+Puede utilizarse:
+
+```text
+crypto.randomUUID()
+```
+
+si está disponible y resulta conveniente.
+
+---
+
+# 26. Seguridad de nombres en UI
+
+Renderizar nombres como texto.
+
+No insertar nombres de usuario mediante:
+
+```text
+innerHTML
+```
+
+Usar:
+
+```text
+textContent
+```
+
+o creación segura de elementos.
+
+Evitar cualquier posibilidad de interpretar HTML introducido por el usuario.
+
+---
+
+# 27. EQ y presets
+
+Mantener:
+
+```text
+30 Hz
+90 Hz
+300 Hz
+1 kHz
+3 kHz
+8 kHz
+15 kHz
+```
+
+Rango:
+
+```text
+-12 dB a +12 dB
+```
+
+No modificar DSP.
+
+---
+
+# 28. Audio engine
+
+No modificar innecesariamente:
+
+```text
+audio/offscreen.js
+```
+
+salvo que sea necesario para mantener compatibilidad con la lógica de preset existente.
+
+Los presets son fundamentalmente configuración de la interfaz y valores EQ.
+
+No introducir nuevos nodos DSP.
+
+---
+
+# 29. Service worker
+
+Modificar solo si es necesario para la arquitectura de storage o mensajería.
+
+`chrome.storage.local` puede utilizarse desde contextos de extensión apropiados.
+
+Mantener arquitectura simple.
+
+---
+
+# 30. Concurrencia
+
+Evitar que múltiples clicks rápidos en:
+
+```text
+Save
+Rename
+Delete
+```
+
+produzcan:
+
+* presets duplicados;
+* sobrescrituras accidentales;
+* UI inconsistente.
+
+Puedes usar un estado:
+
+```text
+presetBusy
+```
+
+o mecanismo equivalente.
+
+Asegurar liberación mediante `finally`.
+
+No bloquear volumen o EQ innecesariamente mientras se guarda un preset.
+
+---
+
+# 31. Mensajes de UI
+
+Agregar una zona discreta o reutilizar la existente para mensajes:
+
+```text
+Preset saved.
+Preset renamed.
+Preset deleted.
+Name already exists.
+Unable to save preset.
+```
+
+No dejar mensajes permanentes demasiado invasivos.
+
+---
+
+# 32. Accesibilidad
+
+Todos los nuevos controles deben tener:
+
+* labels;
+* aria-label donde corresponda;
+* foco visible;
+* botones deshabilitados correctamente;
+* navegación razonable con teclado.
+
+---
+
+# 33. Privacidad
+
+Mantener estrictamente:
+
+* sin conexiones externas;
+* sin analytics;
+* sin telemetry;
+* sin scripts externos;
+* sin contenido de páginas;
+* sin historial;
+* sin cookies;
+* sin cuentas;
+* sin sincronización cloud.
+
+Storage es únicamente local.
+
+---
+
+# 34. Manifest
+
+Actualizar versión a:
+
+```text
+0.6.0
+```
+
+Permisos finales:
+
+```text
+offscreen
+tabCapture
+storage
+```
+
+No agregar otros.
+
+Mantener:
+
+```text
+minimum_chrome_version: 116
+```
+
+---
+
+# 35. README
+
+Actualizar README a v0.6.
+
+Mencionar:
+
+* presets personalizados;
+* guardar;
+* renombrar;
+* borrar;
+* persistencia mediante `chrome.storage.local`;
+* almacenamiento exclusivamente local;
+* permiso `storage` y su finalidad;
+* factory presets permanecen inmutables;
+* eliminación del botón Flat redundante.
+
+Mantener documentación concisa.
+
+---
+
+# 36. Pruebas manuales/lógicas
+
+## A. Guardar Custom
+
+Crear curva manual.
+
+Debe mostrar:
+
+```text
+Custom
+```
+
+Guardar como:
+
+```text
+Alex V
+```
+
+Debe aparecer y quedar seleccionado.
+
+---
+
+## B. Cargar
+
+Cambiar a Flat.
+
+Seleccionar:
+
+```text
+Alex V
+```
+
+Los 7 faders deben recuperar valores correctos.
+
+---
+
+## C. Reiniciar popup
+
+Cerrar y abrir popup.
+
+Preset debe seguir disponible.
+
+---
+
+## D. Reiniciar Chrome
+
+Cerrar completamente Chrome.
+
+Volver a abrir.
+
+Preset personalizado debe seguir existiendo.
+
+No debe activarse automáticamente Audio Processing.
+
+---
+
+## E. Rename
+
+Renombrar:
+
+```text
+Alex V
+```
+
+a:
+
+```text
+Mi V
+```
+
+Valores intactos.
+
+---
+
+## F. Delete
+
+Cargar Mi V.
+
+Borrarlo.
+
+Curva permanece aplicada.
+
+Selector pasa a:
+
+```text
+Custom
+```
+
+Mi V desaparece del storage.
+
+---
+
+## G. Factory protection
+
+Seleccionar Soft V.
+
+Confirmar:
+
+```text
+Rename disabled
+Delete disabled
+```
+
+---
+
+## H. Nombre duplicado
+
+Intentar guardar:
+
+```text
+Soft V
+```
+
+Debe rechazarse.
+
+Intentar guardar dos veces:
+
+```text
+Auriculares
+```
+
+Debe rechazarse segundo intento o solicitar un nombre distinto.
+
+No sobrescribir silenciosamente.
+
+---
+
+## I. Datos especiales
+
+Probar nombre:
+
+```text
+Rock <test>
+```
+
+Debe mostrarse literalmente como texto.
+
+No interpretar HTML.
+
+---
+
+## J. Audio
+
+Después de guardar/renombrar/borrar presets:
+
+* Volume debe seguir funcionando;
+* EQ debe seguir funcionando;
+* Mute debe seguir funcionando;
+* ON/OFF debe seguir funcionando.
+
+No deben quedar controles bloqueados.
+
+---
+
+## K. Dos pestañas
+
+Usar preset diferente en dos pestañas.
+
+Los estados temporales siguen siendo independientes.
+
+La colección de presets personalizados sí es común a la extensión, como es esperado.
+
+---
+
+# 37. Revisión final
+
+Antes de terminar:
+
+1. Confirmar backup `old_versions/v0.5/`.
+2. Confirmar versión `0.6.0`.
+3. Confirmar permiso `storage`.
+4. Confirmar ausencia de permisos adicionales.
+5. Confirmar uso exclusivo de `chrome.storage.local`.
+6. Confirmar eliminación completa del botón Flat.
+7. Confirmar factory presets protegidos.
+8. Confirmar validación de custom presets.
+9. Confirmar que Volume sigue arrancando en 100%.
+10. Confirmar que no se introdujeron conexiones externas.
+11. Confirmar que no se introdujeron dependencias.
+12. Confirmar que DSP no fue alterado innecesariamente.
+
+---
+
+# 38. Al finalizar
+
+Devuélveme un resumen breve indicando:
+
+* archivos modificados;
+* confirmación del backup `old_versions/v0.5/`;
+* cambios realizados en manifest;
+* estructura usada para custom presets;
+* clave(s) utilizadas en `chrome.storage.local`;
+* cómo se validan los datos;
+* cómo se guardan;
+* cómo se renombran;
+* cómo se eliminan;
+* cómo se protege a los factory presets;
+* cómo se maneja estado Custom;
+* confirmación de eliminación del botón Flat;
+* confirmación de ausencia de red/telemetría;
+* pasos concretos para probar manualmente la v0.6 en Chrome.

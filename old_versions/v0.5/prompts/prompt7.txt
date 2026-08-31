@@ -1,0 +1,774 @@
+Lee completamente `DEVELOPMENT_SPEC.md` y `README.md` antes de modificar el proyecto.
+
+La versión actual `v0.4` funciona correctamente y tiene:
+
+* layout horizontal;
+* identidad visual azul / rojo / blanco;
+* volumen independiente por pestaña;
+* Audio Processing ON/OFF;
+* EQ de 7 bandas con sliders verticales;
+* Flat;
+* Mute;
+* Reset;
+* robustez y cleanup ya validados.
+
+Quiero implementar ahora la **versión v0.5**.
+
+Objetivos principales:
+
+1. Agregar presets de ecualización de fábrica.
+2. Separar el estado de configuración del EQ del estado de la sesión de audio.
+3. Conservar la curva EQ y su estado ON/OFF al apagar `Audio Processing`.
+4. Mantener el volumen seguro en 100% al volver a activar una pestaña.
+5. No agregar todavía persistencia entre reinicios de Chrome.
+6. No agregar todavía presets personalizados guardables.
+7. No agregar todavía spectrum analyzer.
+
+---
+
+# 1. Backup obligatorio
+
+Antes de modificar los archivos activos:
+
+1. Guarda un snapshot completo de la versión actual en:
+
+`old_versions/v0.4/`
+
+2. Respeta las reglas de backup de `DEVELOPMENT_SPEC.md`.
+
+3. No sobrescribas snapshots existentes.
+
+4. No copies `old_versions` dentro del backup.
+
+5. Después del snapshot, modifica solamente los archivos activos.
+
+---
+
+# 2. Separar configuración de EQ y sesión DSP
+
+Actualmente, al apagar `Audio Processing`, la sesión de audio se destruye y el EQ vuelve visualmente a Flat.
+
+Quiero cambiar ese comportamiento.
+
+La configuración elegida por el usuario debe tratarse como un estado separado del procesamiento activo.
+
+Conceptualmente debe existir por pestaña algo equivalente a:
+
+```text
+Tab settings:
+    eqEnabled
+    eqBands[7]
+    selectedPreset
+```
+
+separado de:
+
+```text
+Active audio session:
+    stream
+    AudioContext
+    nodes
+    masterGain
+    mute
+```
+
+No es obligatorio usar exactamente estas estructuras, pero sí preservar esa separación conceptual.
+
+---
+
+# 3. Comportamiento al apagar Audio Processing
+
+Ejemplo inicial:
+
+```text
+Volume: 135%
+EQ: ON
+
+30 Hz   +4
+90 Hz   +3
+300 Hz  -1
+1 kHz   -3
+3 kHz   -1
+8 kHz   +2
+15 kHz  +4
+```
+
+El usuario apaga:
+
+`Audio Processing → OFF`
+
+Resultado esperado:
+
+* el stream se detiene;
+* la sesión DSP se destruye;
+* el audio normal del navegador vuelve inmediatamente;
+* el master volume de la próxima activación NO debe conservar 135%;
+* la curva EQ permanece almacenada para esa pestaña;
+* el estado EQ ON/OFF permanece almacenado;
+* el popup debe seguir mostrando visualmente la curva anterior aunque Audio Processing esté OFF.
+
+Los controles EQ pueden quedar deshabilitados mientras Audio Processing está OFF si esa sigue siendo la UX actual, pero sus posiciones deben conservarse.
+
+---
+
+# 4. Comportamiento al volver a activar Audio Processing
+
+Siguiendo el ejemplo anterior:
+
+Cuando el usuario vuelve a activar Audio Processing:
+
+```text
+Volume → 100%
+Mute → OFF
+
+EQ → ON
+30 Hz   +4
+90 Hz   +3
+300 Hz  -1
+1 kHz   -3
+3 kHz   -1
+8 kHz   +2
+15 kHz  +4
+```
+
+Por lo tanto:
+
+* el master volume SIEMPRE vuelve a 100% por seguridad auditiva;
+* Mute vuelve OFF;
+* el EQ recupera su estado anterior;
+* la curva EQ anterior se reaplica;
+* no debe producirse un pico súbito de volumen.
+
+Esta diferencia es deliberada:
+
+```text
+Master volume → NO persistir tras OFF
+EQ settings   → SÍ persistir durante la vida de la pestaña
+```
+
+---
+
+# 5. Estado por pestaña
+
+La configuración EQ debe seguir siendo independiente por pestaña.
+
+Ejemplo:
+
+```text
+Tab A:
+Soft V
+EQ ON
+
+Tab B:
+Voice
+EQ ON
+
+Tab C:
+Flat
+EQ OFF
+```
+
+Apagar Audio Processing en Tab A no debe afectar la configuración de B o C.
+
+---
+
+# 6. Duración de esta configuración
+
+Para v0.5, conservar configuración solamente durante la vida de la pestaña / sesión actual del navegador.
+
+NO usar todavía:
+
+`chrome.storage`
+
+NO persistir entre reinicios de Chrome.
+
+NO recordar por hostname.
+
+Cerrar la pestaña puede eliminar completamente sus settings.
+
+Reiniciar Chrome debe dejar todo nuevamente en estado inicial.
+
+---
+
+# 7. Presets de fábrica
+
+Agregar los siguientes presets:
+
+* Flat
+* Soft V
+* Bass
+* Voice
+* Treble
+
+Todos deben estar definidos localmente en código.
+
+No cargar datos externos.
+
+---
+
+# 8. Preset Flat
+
+```text
+30 Hz    0 dB
+90 Hz    0 dB
+300 Hz   0 dB
+1 kHz    0 dB
+3 kHz    0 dB
+8 kHz    0 dB
+15 kHz   0 dB
+```
+
+---
+
+# 9. Preset Soft V
+
+Usar una curva moderada:
+
+```text
+30 Hz   +4 dB
+90 Hz   +3 dB
+300 Hz  -1 dB
+1 kHz   -3 dB
+3 kHz   -1 dB
+8 kHz   +2 dB
+15 kHz  +4 dB
+```
+
+El objetivo es una V suave, no agresiva.
+
+---
+
+# 10. Preset Bass
+
+Propuesta inicial:
+
+```text
+30 Hz   +6 dB
+90 Hz   +5 dB
+300 Hz  +2 dB
+1 kHz    0 dB
+3 kHz   -1 dB
+8 kHz    0 dB
+15 kHz   0 dB
+```
+
+Debe realzar graves sin convertir todo el espectro en una curva extrema.
+
+---
+
+# 11. Preset Voice
+
+Objetivo: mejorar inteligibilidad de voz.
+
+Propuesta:
+
+```text
+30 Hz   -4 dB
+90 Hz   -2 dB
+300 Hz   0 dB
+1 kHz   +3 dB
+3 kHz   +4 dB
+8 kHz   +1 dB
+15 kHz  -1 dB
+```
+
+Debe reducir contenido grave innecesario y enfatizar zona media/presencia.
+
+---
+
+# 12. Preset Treble
+
+Propuesta:
+
+```text
+30 Hz   -1 dB
+90 Hz    0 dB
+300 Hz   0 dB
+1 kHz    0 dB
+3 kHz   +2 dB
+8 kHz   +5 dB
+15 kHz  +6 dB
+```
+
+Mantener carácter razonable y usable.
+
+---
+
+# 13. Interfaz de presets
+
+Agregar una sección compacta dentro del panel EQ.
+
+Puede usarse:
+
+* un `<select>`;
+* botones compactos;
+* segmented control;
+
+Elige la alternativa que mejor se adapte a la interfaz horizontal existente.
+
+Evita agrandar innecesariamente el popup.
+
+Debe ser sencillo elegir:
+
+```text
+Flat
+Soft V
+Bass
+Voice
+Treble
+```
+
+---
+
+# 14. Aplicación de preset
+
+Al elegir un preset:
+
+1. Actualizar las siete bandas.
+2. Actualizar visualmente los faders.
+3. Aplicar los nuevos valores al DSP si EQ está activo.
+4. Mantener master volume intacto.
+5. Mantener Mute intacto.
+6. Mantener Audio Processing intacto.
+7. Mantener EQ ON/OFF intacto.
+
+Ejemplo:
+
+```text
+Volume 140%
+Mute OFF
+EQ ON
+
+Preset → Soft V
+```
+
+Resultado:
+
+```text
+Volume sigue 140%
+Mute sigue OFF
+EQ sigue ON
+Curva cambia a Soft V
+```
+
+---
+
+# 15. Preset seleccionado
+
+La interfaz debe indicar cuál preset está seleccionado.
+
+Si el usuario modifica manualmente cualquier banda después de elegir un preset, el estado debe pasar a:
+
+`Custom`
+
+No es necesario guardar `Custom` todavía.
+
+Ejemplo:
+
+```text
+Preset: Soft V
+```
+
+Usuario modifica:
+
+```text
+1 kHz -3 → -4
+```
+
+La UI debe indicar:
+
+```text
+Preset: Custom
+```
+
+---
+
+# 16. Flat y preset Flat
+
+El botón Flat existente puede:
+
+* mantenerse;
+* o integrarse visualmente con los presets.
+
+Si se mantiene el botón, su comportamiento debe equivaler a elegir preset `Flat`.
+
+Evitar tener dos implementaciones distintas de la misma lógica.
+
+---
+
+# 17. EQ OFF con presets
+
+Si EQ está OFF:
+
+* el usuario puede ver qué preset/configuración está almacenado;
+* los sliders deben mostrar su curva;
+* si actualmente la UX impide modificarlos mientras EQ está OFF, puede mantenerse ese comportamiento.
+
+Al volver EQ ON debe aplicarse la configuración almacenada.
+
+---
+
+# 18. Audio Processing OFF y presets
+
+Si Audio Processing está OFF:
+
+* conservar preset seleccionado;
+* conservar valores EQ;
+* conservar estado anterior de EQ;
+* no aplicar DSP porque no existe sesión activa.
+
+Al reactivar:
+
+* Volume = 100%;
+* Mute = OFF;
+* aplicar EQ y preset almacenados.
+
+---
+
+# 19. Primer uso de una pestaña
+
+Una pestaña nueva debe comenzar:
+
+```text
+Audio Processing OFF
+Volume 100%
+Mute OFF
+EQ OFF
+Preset Flat
+Todas las bandas 0 dB
+```
+
+No heredar configuración de otra pestaña.
+
+---
+
+# 20. Cleanup
+
+Al cerrar definitivamente una pestaña:
+
+* destruir sesión DSP;
+* eliminar settings EQ de esa pestaña;
+* eliminar preset seleccionado;
+* eliminar estados auxiliares.
+
+No afectar otras pestañas.
+
+---
+
+# 21. Arquitectura
+
+Evitar guardar configuración exclusivamente dentro del offscreen document si eso provoca que desaparezca al destruir la sesión.
+
+Ubica el estado temporal donde pueda sobrevivir a:
+
+`Audio Processing OFF`
+
+pero seguir asociado al `tabId`.
+
+Puede estar en service worker u otra estructura apropiada.
+
+Ten en cuenta que los service workers de Manifest V3 pueden suspenderse.
+
+Si eso hace que el estado temporal en memoria no sea fiable, analiza una solución local apropiada que NO requiera agregar permisos nuevos ni persistencia entre reinicios.
+
+No agregues `storage` silenciosamente.
+
+Si técnicamente resulta imposible garantizar esta persistencia temporal sin `storage`, explica el conflicto antes de cambiar permisos.
+
+---
+
+# 22. Seguridad auditiva
+
+Mantener como regla absoluta:
+
+Cada nueva sesión de Audio Processing comienza con:
+
+```text
+master gain = 1.0
+Volume = 100%
+Mute = OFF
+```
+
+Aunque anteriormente la pestaña tuviera:
+
+```text
+Volume = 180%
+```
+
+NO recordar ese valor después de apagar Audio Processing.
+
+EQ sí puede recuperarse porque es una configuración tonal distinta al master amplification.
+
+---
+
+# 23. Suavizado
+
+Aplicar presets mediante las mismas transiciones suaves que se utilizan al mover sliders.
+
+No aplicar siete saltos bruscos simultáneos.
+
+Mantener aproximadamente 10–30 ms de transición.
+
+Evitar clicks.
+
+---
+
+# 24. UI actual
+
+Mantener:
+
+* layout horizontal;
+* sliders verticales;
+* paleta azul / rojo / blanco;
+* tipografía;
+* dimensiones generales;
+* accesibilidad.
+
+No rediseñar otra vez toda la interfaz.
+
+Agregar presets de manera integrada y discreta.
+
+---
+
+# 25. Spectrum Analyzer
+
+NO implementar todavía:
+
+* AnalyserNode;
+* FFT;
+* canvas;
+* spectrum display.
+
+Eso se desarrollará en una versión posterior.
+
+---
+
+# 26. Presets personalizados
+
+NO implementar todavía:
+
+* Save preset;
+* Rename preset;
+* Delete preset;
+* Import/export;
+* chrome.storage;
+* perfiles de usuario.
+
+Eso será otra versión.
+
+---
+
+# 27. Privacidad
+
+Mantener:
+
+* cero conexiones externas;
+* cero analytics;
+* cero telemetry;
+* cero acceso a contenido de páginas;
+* cero historial;
+* cero cookies.
+
+---
+
+# 28. Permisos
+
+No agregar permisos.
+
+Mantener solamente:
+
+```text
+offscreen
+tabCapture
+```
+
+---
+
+# 29. Manifest
+
+Actualizar versión a:
+
+`0.5.0`
+
+Mantener:
+
+```text
+minimum_chrome_version: 116
+```
+
+No cambiar nombre ni permisos.
+
+---
+
+# 30. README
+
+Actualizar README a v0.5.
+
+Mencionar brevemente:
+
+* presets de fábrica;
+* Flat;
+* Soft V;
+* Bass;
+* Voice;
+* Treble;
+* configuración EQ conservada al apagar Audio Processing;
+* Volume vuelve siempre a 100% por seguridad;
+* no existe todavía persistencia entre reinicios.
+
+---
+
+# 31. Pruebas manuales/lógicas
+
+## A. Preset Soft V
+
+Activar EQ.
+
+Elegir Soft V.
+
+Confirmar:
+
+```text
++4 +3 -1 -3 -1 +2 +4
+```
+
+---
+
+## B. Custom
+
+Elegir Soft V.
+
+Mover 1 kHz manualmente.
+
+El selector debe pasar a:
+
+`Custom`
+
+---
+
+## C. Audio OFF / ON
+
+Configurar:
+
+```text
+Volume 160%
+EQ ON
+Soft V
+```
+
+Apagar Audio Processing.
+
+Volver a encender.
+
+Resultado esperado:
+
+```text
+Volume 100%
+Mute OFF
+EQ ON
+Soft V recuperado
+```
+
+---
+
+## D. EQ OFF conservado
+
+Configurar Bass.
+
+Apagar solamente EQ.
+
+Apagar Audio Processing.
+
+Volver a activar Audio Processing.
+
+Resultado:
+
+```text
+Volume 100%
+EQ OFF
+Preset Bass sigue almacenado
+```
+
+Al activar EQ:
+
+`Bass` debe aplicarse.
+
+---
+
+## E. Tabs independientes
+
+Tab A:
+
+```text
+Soft V
+```
+
+Tab B:
+
+```text
+Voice
+```
+
+Apagar y encender Audio Processing independientemente.
+
+Cada una debe recuperar su propia configuración.
+
+---
+
+## F. Flat
+
+Elegir cualquier preset.
+
+Pulsar Flat.
+
+Resultado:
+
+```text
+Preset Flat
+todas las bandas 0
+```
+
+---
+
+## G. Mute
+
+Mute debe seguir funcionando normalmente con cualquier preset.
+
+---
+
+## H. Cierre de pestaña
+
+Cerrar una pestaña con preset configurado.
+
+No debe quedar estado huérfano.
+
+---
+
+# 32. Revisar comportamiento del service worker
+
+Como el estado EQ ahora debe sobrevivir al apagado de la sesión de audio, revisa cuidadosamente la vida útil del service worker de Manifest V3.
+
+No supongas que una variable global en el service worker permanecerá siempre viva.
+
+Implementa la solución más robusta posible dentro de las restricciones actuales.
+
+No agregues permisos nuevos sin justificarlo.
+
+---
+
+# 33. Al finalizar
+
+Devuélveme un resumen indicando:
+
+* archivos modificados;
+* confirmación del backup `old_versions/v0.4/`;
+* cómo separaste settings EQ de sesión DSP;
+* dónde se mantiene el estado temporal por pestaña;
+* cómo manejas suspensión/reinicio del service worker;
+* presets implementados y sus valores;
+* comportamiento al pasar a Custom;
+* comportamiento Audio OFF → ON;
+* confirmación de Volume 100% al reactivar;
+* confirmación de permisos sin cambios;
+* confirmación de ausencia de dependencias y conexiones externas;
+* pasos concretos para probar manualmente v0.5.
