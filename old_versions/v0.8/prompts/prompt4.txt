@@ -1,0 +1,706 @@
+Lee completamente `DEVELOPMENT_SPEC.md` y `README.md` antes de modificar el proyecto.
+
+La versión actual `v0.2` funciona correctamente y está validada manualmente.
+
+Quiero implementar ahora la **versión v0.3**, cuyo único objetivo principal es agregar un ecualizador gráfico básico de 6 bandas, manteniendo intacto todo el comportamiento existente de volumen, mute, reset, manejo por pestaña y robustez.
+
+No agregues todavía presets, visualizador, perfiles por sitio ni persistencia entre reinicios.
+
+---
+
+# 1. Backup obligatorio
+
+Antes de modificar los archivos activos:
+
+1. Guarda un snapshot completo de la versión actual en:
+
+`old_versions/v0.2/`
+
+2. Respeta las reglas de backup de `DEVELOPMENT_SPEC.md`.
+
+3. No sobrescribas snapshots existentes.
+
+4. No copies `old_versions` dentro del backup.
+
+5. Después del snapshot, trabaja solamente sobre los archivos activos.
+
+---
+
+# 2. Objetivo de v0.3
+
+Agregar un ecualizador independiente por pestaña usando Web Audio API.
+
+El ecualizador debe ser:
+
+* local;
+* privado;
+* sin dependencias externas;
+* sin permisos nuevos;
+* independiente por pestaña;
+* seguro al activarse;
+* fácil de desactivar;
+* inicialmente plano.
+
+---
+
+# 3. Bandas del ecualizador
+
+Implementa seis bandas:
+
+```text id="7qshq4"
+60 Hz
+170 Hz
+350 Hz
+1 kHz
+3.5 kHz
+10 kHz
+```
+
+Cada banda debe permitir:
+
+```text id="xyne6n"
+-12 dB a +12 dB
+```
+
+Valor inicial:
+
+```text id="dw6g65"
+0 dB
+```
+
+Paso recomendado:
+
+```text id="vyau9w"
+1 dB
+```
+
+Puede usarse otro paso pequeño si existe una razón clara de UX.
+
+---
+
+# 4. Arquitectura DSP
+
+Extiende la cadena de audio existente.
+
+Conceptualmente:
+
+```text id="s157ti"
+Captured tab stream
+        ↓
+SourceNode
+        ↓
+EQ Band 1
+        ↓
+EQ Band 2
+        ↓
+EQ Band 3
+        ↓
+EQ Band 4
+        ↓
+EQ Band 5
+        ↓
+EQ Band 6
+        ↓
+GainNode
+        ↓
+Audio destination
+```
+
+El control de volumen existente debe seguir funcionando como master gain.
+
+No reemplaces ni reescribas innecesariamente la arquitectura actual.
+
+---
+
+# 5. BiquadFilterNode
+
+Usa `BiquadFilterNode` de Web Audio API.
+
+Para las bandas centrales utiliza filtros apropiados de tipo `peaking`.
+
+Puedes usar filtros shelf para los extremos si técnicamente ofrece una respuesta más natural:
+
+* banda baja: `lowshelf` o `peaking`;
+* bandas medias: `peaking`;
+* banda alta: `highshelf` o `peaking`.
+
+Elige una implementación coherente y documenta brevemente la decisión en el código.
+
+Evita valores extremos de Q que produzcan una respuesta artificial o inestable.
+
+El objetivo es un ecualizador musical y usable, no un DSP de laboratorio.
+
+---
+
+# 6. Estado inicial seguro
+
+Este requisito es crítico.
+
+Cuando se activa el procesamiento de audio en una pestaña nueva:
+
+* volumen inicial = 100%;
+* todas las bandas EQ = 0 dB;
+* EQ = OFF por defecto.
+
+Por lo tanto, activar la extensión debe seguir produciendo una salida aproximadamente equivalente a la original.
+
+Nunca aplicar automáticamente boost de graves, agudos u otra curva.
+
+---
+
+# 7. Toggle independiente del ecualizador
+
+Agregar un control separado:
+
+`Equalizer OFF / ON`
+
+El procesamiento general de audio y el EQ son conceptos distintos.
+
+Ejemplo:
+
+```text id="3r6w8g"
+Audio processing: ON
+Equalizer: OFF
+Volume: 125%
+```
+
+Al activar EQ:
+
+* habilitar los controles de las bandas;
+* aplicar los valores configurados.
+
+Al desactivar EQ:
+
+* la respuesta debe volver a plana;
+* el control de volumen debe continuar funcionando;
+* la extensión debe permanecer activa.
+
+No destruir toda la sesión de audio al apagar solamente el EQ.
+
+---
+
+# 8. Estado por pestaña
+
+Cada pestaña debe mantener su propio estado de EQ.
+
+Ejemplo:
+
+```text id="9z0caa"
+Tab A:
+Volume 140%
+EQ ON
+60 Hz +5 dB
+170 Hz +2 dB
+...
+
+Tab B:
+Volume 70%
+EQ OFF
+
+Tab C:
+OFF
+```
+
+Modificar una banda en Tab A no debe afectar Tab B.
+
+---
+
+# 9. Estado del EQ durante la vida de la pestaña
+
+Mientras la sesión exista, conservar:
+
+* EQ ON/OFF;
+* valor de cada banda.
+
+Cerrar y volver a abrir el popup debe mostrar correctamente los valores actuales de esa pestaña.
+
+No implementar todavía persistencia después de reiniciar Chrome.
+
+Una sesión nueva debe comenzar con:
+
+```text id="w6gqxz"
+EQ OFF
+todas las bandas 0 dB
+```
+
+---
+
+# 10. Interfaz del popup
+
+Amplía la interfaz actual sin rediseñarla por completo.
+
+Mantén arriba la sección existente:
+
+* Audio processing
+* Volume
+* Reset
+* Mute
+* estado
+
+Agregar debajo una sección:
+
+```text id="2tkcsx"
+EQUALIZER          OFF / ON
+
+60 Hz     slider      0 dB
+170 Hz    slider      0 dB
+350 Hz    slider      0 dB
+1 kHz     slider      0 dB
+3.5 kHz   slider      0 dB
+10 kHz    slider      0 dB
+
+[ Flat ]
+```
+
+El diseño exacto puede adaptarse al espacio del popup.
+
+---
+
+# 11. Botón Flat
+
+Agregar un botón:
+
+`Flat`
+
+Su función:
+
+* poner todas las bandas en 0 dB;
+* mantener EQ ON si ya estaba ON;
+* actualizar inmediatamente los filtros;
+* actualizar sliders y valores visuales.
+
+Flat NO debe modificar:
+
+* volumen;
+* mute;
+* estado Audio processing.
+
+---
+
+# 12. Sliders del EQ en tiempo real
+
+Las bandas deben actualizarse mientras el usuario mueve cada slider.
+
+Usar evento `input`, como en el slider de volumen.
+
+Mostrar siempre el valor actual:
+
+```text id="q8kloi"
+-6 dB
+0 dB
++4 dB
+```
+
+No esperar a que el usuario suelte el slider.
+
+---
+
+# 13. Cambios suaves de parámetros
+
+Evitar clicks al modificar bandas.
+
+No realizar saltos abruptos innecesarios en los parámetros `gain` de los filtros.
+
+Usa transiciones muy cortas mediante métodos apropiados de `AudioParam`, por ejemplo:
+
+* `cancelScheduledValues`
+* `cancelAndHoldAtTime`
+* `setValueAtTime`
+* `linearRampToValueAtTime`
+* `setTargetAtTime`
+
+Mantener una respuesta inmediata al usuario.
+
+Una transición aproximada de 10–30 ms es apropiada.
+
+---
+
+# 14. Bypass del EQ
+
+Cuando EQ está OFF, la salida debe ser plana.
+
+Puedes implementar el bypass de forma segura de una de estas maneras:
+
+* poner todos los gains de filtros en 0 dB;
+* o implementar una ruta de bypass limpia.
+
+Prioriza:
+
+1. estabilidad;
+2. ausencia de clicks;
+3. código simple;
+4. facilidad de mantenimiento.
+
+No crear dos señales paralelas activas que puedan sumarse accidentalmente y duplicar el volumen.
+
+---
+
+# 15. Seguridad de volumen
+
+Agregar EQ puede aumentar el nivel de determinadas frecuencias.
+
+No agregues automáticamente compensación, compressor ni limiter en esta versión.
+
+Sin embargo:
+
+* documenta que boosts altos pueden producir clipping;
+* mantén valores máximos en ±12 dB;
+* no aumentes automáticamente el master volume.
+
+No modificar el rango actual del master volume:
+
+`0–200%`
+
+---
+
+# 16. Interacción con Mute
+
+Mute debe silenciar toda la salida independientemente del EQ.
+
+Ejemplo:
+
+```text id="07cnhe"
+Volume 130%
+EQ ON
+60 Hz +6 dB
+Mute ON
+```
+
+Salida:
+
+`silencio`
+
+Al desmutear:
+
+* recuperar volumen;
+* recuperar EQ;
+* conservar todos los valores anteriores.
+
+---
+
+# 17. Interacción con Reset 100%
+
+`Reset 100%` sigue afectando solamente el master volume.
+
+No debe poner el EQ en Flat.
+
+Ejemplo:
+
+```text id="cjvv2r"
+Volume 160%
+EQ ON
+60 Hz +4 dB
+
+Reset 100%
+```
+
+Resultado:
+
+```text id="zjh51m"
+Volume 100%
+EQ ON
+60 Hz +4 dB
+```
+
+---
+
+# 18. Interacción con Flat
+
+Flat afecta solamente el EQ.
+
+Ejemplo:
+
+```text id="of1a3b"
+Volume 135%
+Mute OFF
+EQ ON
+60 Hz +7
+170 Hz +3
+```
+
+Pulsar Flat:
+
+```text id="aa69bk"
+Volume 135%
+Mute OFF
+EQ ON
+todas las bandas 0 dB
+```
+
+---
+
+# 19. Audio processing OFF
+
+Al apagar `Audio processing`:
+
+* destruir la sesión como actualmente;
+* liberar todos los filtros EQ;
+* limpiar AudioContext y stream;
+* eliminar todos los estados de esa pestaña.
+
+Si posteriormente se vuelve a activar:
+
+```text id="9hr2r8"
+Volume 100%
+Mute OFF
+EQ OFF
+Bandas 0 dB
+```
+
+Mantener la regla de activación segura.
+
+---
+
+# 20. Cleanup
+
+Extiende el cleanup existente para incluir:
+
+* desconexión de todos los `BiquadFilterNode`;
+* limpieza de referencias;
+* manejo seguro de cleanup duplicado;
+* ningún efecto sobre sesiones de otras pestañas.
+
+No dejar nodos EQ huérfanos.
+
+---
+
+# 21. Mensajería
+
+Extiende los mensajes existentes entre:
+
+* popup;
+* service worker;
+* offscreen document;
+
+para soportar:
+
+* EQ ON/OFF;
+* cambio de banda;
+* Flat;
+* consulta completa del estado EQ.
+
+Mantén los mensajes claros y estructurados.
+
+Evita crear APIs internas innecesariamente complejas.
+
+---
+
+# 22. Robustez
+
+Todas las mejoras de v0.2 deben mantenerse.
+
+Especialmente:
+
+* cola por pestaña;
+* operaciones ON/OFF idempotentes;
+* cleanup robusto;
+* manejo de streams terminados;
+* pestañas protegidas;
+* errores amigables;
+* estados transitorios;
+* múltiples sesiones independientes.
+
+No regresiones estas funcionalidades.
+
+---
+
+# 23. Popup y tamaño
+
+El popup puede crecer verticalmente debido al ecualizador.
+
+Mantén un tamaño razonable y utilizable.
+
+Evita:
+
+* scroll horizontal;
+* controles demasiado pequeños;
+* sliders excesivamente cortos;
+* textos cortados.
+
+Si el contenido requiere scroll vertical moderado, es aceptable, pero intenta diseñar la sección EQ de forma compacta.
+
+---
+
+# 24. Privacidad
+
+Mantener íntegramente la política actual.
+
+No agregar:
+
+* acceso a páginas;
+* host permissions;
+* historial;
+* cookies;
+* networking;
+* analytics;
+* telemetry;
+* almacenamiento online;
+* scripts remotos.
+
+Todo el DSP debe ejecutarse localmente.
+
+---
+
+# 25. Permisos
+
+No agregar permisos nuevos.
+
+Mantener:
+
+```text id="vfeeen"
+offscreen
+tabCapture
+```
+
+Si consideras imprescindible agregar otro permiso, detén ese cambio y explica por qué.
+
+---
+
+# 26. Dependencias
+
+No agregar dependencias.
+
+Seguir usando:
+
+* Vanilla HTML
+* Vanilla CSS
+* Vanilla JavaScript
+* Chrome APIs
+* Web Audio API
+
+---
+
+# 27. Manifest
+
+Actualizar versión a:
+
+`0.3.0`
+
+Mantener:
+
+`minimum_chrome_version: 116`
+
+No cambiar nombre ni permisos.
+
+---
+
+# 28. README
+
+Actualizar `README.md`.
+
+Incluir brevemente:
+
+* versión actual `v0.3`;
+* ecualizador de 6 bandas;
+* rango ±12 dB;
+* procesamiento local;
+* independencia por pestaña;
+* botón Flat;
+* EQ OFF por defecto;
+* advertencia breve sobre posible clipping al aplicar boosts elevados.
+
+Mantener documentación concisa.
+
+---
+
+# 29. Pruebas lógicas antes de finalizar
+
+Revisar estos escenarios:
+
+### A. Activación normal
+
+```text id="jybvyr"
+Audio processing ON
+```
+
+Resultado:
+
+```text id="ouhg3c"
+Volume 100%
+EQ OFF
+Bandas 0 dB
+```
+
+Sin cambio audible inesperado.
+
+### B. Activar EQ
+
+EQ ON con todas las bandas 0 dB.
+
+El audio debería sonar prácticamente idéntico al estado plano.
+
+### C. Una banda
+
+Subir solamente 60 Hz.
+
+Confirmar que las demás bandas permanecen en 0.
+
+### D. Flat
+
+Modificar varias bandas.
+
+Pulsar Flat.
+
+Todas deben volver a 0.
+
+### E. EQ OFF
+
+Configurar varias bandas y apagar EQ.
+
+La respuesta debe volver a plana sin apagar Audio processing.
+
+### F. EQ ON nuevamente
+
+Si la sesión sigue activa, conservar los valores configurados anteriormente y volver a aplicarlos.
+
+### G. Tabs independientes
+
+Tab A:
+
+```text id="4z2mj1"
+EQ ON
+60 Hz +6
+```
+
+Tab B:
+
+```text id="sotm1z"
+EQ ON
+10 kHz +5
+```
+
+Los estados deben mantenerse independientes.
+
+### H. Mute
+
+Mute con EQ activo.
+
+Debe silenciar toda la salida y recuperar correctamente el EQ al desmutear.
+
+### I. Reset volume
+
+Reset 100% no debe alterar EQ.
+
+### J. Cleanup
+
+Cerrar una pestaña con EQ activo.
+
+Debe destruir toda su cadena DSP sin afectar otras pestañas.
+
+---
+
+# 30. Al finalizar
+
+Devuélveme un resumen breve indicando:
+
+* archivos modificados;
+* arquitectura EQ implementada;
+* tipo de filtro utilizado en cada banda;
+* valores de frecuencia y Q;
+* cómo se implementó bypass;
+* cómo se suavizan los cambios;
+* cómo se mantiene estado independiente por pestaña;
+* cómo se amplió el cleanup;
+* confirmación de que siguen existiendo únicamente los permisos `offscreen` y `tabCapture`;
+* confirmación de que no agregaste dependencias ni conexiones externas;
+* pasos exactos para probar manualmente la v0.3 en Chrome.

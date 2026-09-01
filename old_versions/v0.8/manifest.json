@@ -1,0 +1,15 @@
+{
+  "manifest_version": 3,
+  "name": "Tab Audio Control",
+  "version": "0.8.0",
+  "description": "Control the volume of the current tab locally and independently.",
+  "minimum_chrome_version": "116",
+  "permissions": ["offscreen", "tabCapture", "storage"],
+  "background": {
+    "service_worker": "background/service-worker.js"
+  },
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_title": "Tab Audio Control"
+  }
+}
