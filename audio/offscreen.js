@@ -1,17 +1,8 @@
-const EQ_BANDS = Object.freeze([
-  // Shelves at the spectrum edges give a more natural broad bass/treble shape;
-  // the five musical mid bands use moderate-Q peaking filters.
-  Object.freeze({ frequency: 30, type: "lowshelf" }),
-  Object.freeze({ frequency: 90, type: "peaking", q: 1 }),
-  Object.freeze({ frequency: 300, type: "peaking", q: 1 }),
-  Object.freeze({ frequency: 1000, type: "peaking", q: 1 }),
-  Object.freeze({ frequency: 3000, type: "peaking", q: 1 }),
-  Object.freeze({ frequency: 8000, type: "peaking", q: 1 }),
-  Object.freeze({ frequency: 15000, type: "highshelf" })
-]);
+const EQ_BANDS = globalThis.__TAB_AUDIO_CONTROL_CONFIG.bands;
 const DEFAULT_EQ_GAINS = Object.freeze(EQ_BANDS.map(() => 0));
-const PARAM_RAMP_SECONDS = 0.02;
+const PARAM_RAMP_SECONDS = globalThis.__TAB_AUDIO_CONTROL_CONFIG.rampSeconds;
 const sessions = new Map();
+const inPageSessions = new Map();
 const tabSettings = new Map();
 
 function defaultSettings() {
@@ -35,12 +26,15 @@ function getSettings(tabId, create = false) {
 
 function publicState(tabId) {
   const session = sessions.get(tabId);
+  const inPageSession = inPageSessions.get(tabId);
+  const runtime = session || inPageSession;
   const settings = getSettings(tabId);
   return {
-    enabled: Boolean(session),
+    enabled: Boolean(runtime),
+    backend: session ? "tab-capture" : inPageSession ? "in-page" : null,
     // Session-only controls deliberately reset whenever processing stops.
-    volume: session?.volume ?? 100,
-    muted: session?.muted ?? false,
+    volume: runtime?.volume ?? 100,
+    muted: runtime?.muted ?? false,
     eqEnabled: settings.eqEnabled,
     analyzerEnabled: settings.analyzerEnabled,
     eqDirty: settings.eqDirty,
@@ -149,6 +143,7 @@ async function startSession(tabId, streamId) {
   if (sessions.has(tabId)) {
     return publicState(tabId);
   }
+  if (inPageSessions.has(tabId)) throw new Error("An in-page session is already active for this tab.");
 
   getSettings(tabId, true);
 
@@ -337,6 +332,61 @@ function applyEqPreset(tabId, preset, customGains) {
   return publicState(tabId);
 }
 
+function registerInPageSession(tabId) {
+  if (sessions.has(tabId)) throw new Error("A capture session is already active for this tab.");
+  if (!inPageSessions.has(tabId)) {
+    getSettings(tabId, true);
+    inPageSessions.set(tabId, { tabId, volume: 100, muted: false });
+  }
+  return publicState(tabId);
+}
+
+function stopInPageSession(tabId) {
+  inPageSessions.delete(tabId);
+  return publicState(tabId);
+}
+
+function requireInPageSession(tabId) {
+  const session = inPageSessions.get(tabId);
+  if (!session) throw new Error(`No active in-page session for tab ${tabId}.`);
+  return session;
+}
+
+function setInPageVolume(tabId, value) {
+  const volume = Number(value);
+  if (!Number.isFinite(volume) || volume < 0 || volume > 200 || volume % 5 !== 0) {
+    throw new Error("Volume must be between 0 and 200 in steps of 5.");
+  }
+  requireInPageSession(tabId).volume = volume;
+  return publicState(tabId);
+}
+
+function setInPageMuted(tabId, value) {
+  if (typeof value !== "boolean") throw new Error("Muted state must be a boolean.");
+  requireInPageSession(tabId).muted = value;
+  return publicState(tabId);
+}
+
+function setInPageEqEnabled(tabId, value) {
+  if (typeof value !== "boolean") throw new Error("Equalizer state must be a boolean.");
+  requireInPageSession(tabId);
+  getSettings(tabId, true).eqEnabled = value;
+  return publicState(tabId);
+}
+
+function setInPageEqBand(tabId, bandIndexValue, gainValue) {
+  const bandIndex = Number(bandIndexValue);
+  const gain = Number(gainValue);
+  if (!Number.isInteger(bandIndex) || bandIndex < 0 || bandIndex >= EQ_BANDS.length
+      || !Number.isInteger(gain) || gain < -12 || gain > 12) throw new Error("Invalid equalizer band.");
+  requireInPageSession(tabId);
+  const settings = getSettings(tabId, true);
+  settings.eqGains[bandIndex] = gain;
+  settings.selectedPreset = "Custom";
+  settings.eqDirty = true;
+  return publicState(tabId);
+}
+
 function createSpectrumBuffers(analyser, sampleRate) {
   const bins = new Uint8Array(analyser.frequencyBinCount);
   const bars = Array(SPECTRUM.bars).fill(0);
@@ -383,27 +433,38 @@ async function handleMessage(message) {
     case "GET_SPECTRUM":
       return readSpectrum(message.tabId);
     case "SET_ANALYZER_ENABLED":
-      requireSession(message.tabId);
+      if (inPageSessions.has(message.tabId)) requireInPageSession(message.tabId);
+      else requireSession(message.tabId);
       if (typeof message.analyzerEnabled !== "boolean") throw new Error("Analyzer state must be a boolean.");
       getSettings(message.tabId, true).analyzerEnabled = message.analyzerEnabled;
       return { state: publicState(message.tabId) };
     case "START_SESSION":
       return { state: await startSession(message.tabId, message.streamId) };
+    case "REGISTER_IN_PAGE":
+      return { state: registerInPageSession(message.tabId) };
+    case "STOP_IN_PAGE":
+      return { state: stopInPageSession(message.tabId) };
     case "STOP_SESSION":
       await destroySession(message.tabId);
       return { state: publicState(message.tabId), sessionCount: sessions.size };
     case "DELETE_TAB":
       await destroySession(message.tabId);
+      inPageSessions.delete(message.tabId);
       tabSettings.delete(message.tabId);
-      return { state: publicState(message.tabId), sessionCount: sessions.size };
+      return { state: publicState(message.tabId), sessionCount: sessions.size + inPageSessions.size };
     case "SET_VOLUME":
-      return { state: setVolume(message.tabId, message.volume) };
+      return { state: inPageSessions.has(message.tabId)
+        ? setInPageVolume(message.tabId, message.volume) : setVolume(message.tabId, message.volume) };
     case "SET_MUTED":
-      return { state: setMuted(message.tabId, message.muted) };
+      return { state: inPageSessions.has(message.tabId)
+        ? setInPageMuted(message.tabId, message.muted) : setMuted(message.tabId, message.muted) };
     case "SET_EQ_ENABLED":
-      return { state: setEqEnabled(message.tabId, message.eqEnabled) };
+      return { state: inPageSessions.has(message.tabId)
+        ? setInPageEqEnabled(message.tabId, message.eqEnabled) : setEqEnabled(message.tabId, message.eqEnabled) };
     case "SET_EQ_BAND":
-      return { state: setEqBand(message.tabId, message.bandIndex, message.gain) };
+      return { state: inPageSessions.has(message.tabId)
+        ? setInPageEqBand(message.tabId, message.bandIndex, message.gain)
+        : setEqBand(message.tabId, message.bandIndex, message.gain) };
     case "APPLY_EQ_PRESET":
       return { state: applyEqPreset(message.tabId, message.preset, message.gains) };
     case "MARK_SAVED_PRESET": {
@@ -422,7 +483,11 @@ async function handleMessage(message) {
       }
       return {};
     case "GET_SESSION_COUNT":
-      return { sessionCount: sessions.size };
+      return {
+        sessionCount: sessions.size + inPageSessions.size,
+        captureSessionCount: sessions.size,
+        inPageSessionCount: inPageSessions.size
+      };
     default:
       throw new Error("Unknown audio engine request.");
   }

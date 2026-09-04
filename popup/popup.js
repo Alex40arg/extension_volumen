@@ -1,6 +1,7 @@
 const EQ_BAND_COUNT = 7;
 const DEFAULT_STATE = Object.freeze({
   enabled: false,
+  backend: null,
   volume: 100,
   muted: false,
   eqEnabled: false,
@@ -33,6 +34,7 @@ const elements = {
   deletePreset: document.querySelector("#delete-preset"),
   presetMessage: document.querySelector("#preset-message"),
   stateBadge: document.querySelector("#state-badge"),
+  backendMode: document.querySelector("#backend-mode"),
   message: document.querySelector("#message")
 };
 
@@ -53,8 +55,8 @@ let popupClosed = false;
 const spectrum = new SpectrumView(
   document.querySelector("#spectrum-canvas"),
   document.querySelector("#spectrum-status"),
-  // Direct local request: no worker relay, no capture creation, one in flight.
-  () => chrome.runtime.sendMessage({ target: "offscreen", type: "GET_SPECTRUM", tabId: currentTabId })
+  // The worker selects the active backend; there is still only one request in flight.
+  () => chrome.runtime.sendMessage({ target: "service-worker", type: "GET_SPECTRUM", tabId: currentTabId })
 );
 
 function renderAnalyzer() {
@@ -205,6 +207,7 @@ function formatDb(value) {
 function render(state = currentState) {
   currentState = {
     enabled: Boolean(state.enabled),
+    backend: state.backend === "in-page" || state.backend === "tab-capture" ? state.backend : null,
     volume: Number.isFinite(state.volume) ? state.volume : 100,
     muted: Boolean(state.muted),
     eqEnabled: Boolean(state.eqEnabled),
@@ -239,6 +242,9 @@ function render(state = currentState) {
   });
   elements.stateBadge.textContent = currentState.enabled ? "ON" : "OFF";
   elements.stateBadge.className = `badge ${currentState.enabled ? "badge-on" : "badge-off"}`;
+  elements.backendMode.textContent = currentState.backend === "in-page"
+    ? "Mode: Fullscreen compatible"
+    : currentState.backend === "tab-capture" ? "Mode: Capture fallback" : "Mode: inactive";
 }
 
 async function sendCommand(type, data = {}) {

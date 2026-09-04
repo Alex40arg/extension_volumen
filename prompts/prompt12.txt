@@ -1,0 +1,804 @@
+Lee completamente `DEVELOPMENT_SPEC.md`, `README.md` y revisa la versión actual del proyecto antes de modificar nada.
+
+La extensión actual funciona correctamente para:
+
+* control de volumen por pestaña;
+* ecualizador;
+* presets;
+* spectrum analyzer;
+* múltiples pestañas;
+* procesamiento local.
+
+Sin embargo, detectamos una limitación importante:
+
+Cuando `Audio Processing` está ON y la pestaña está siendo procesada mediante `chrome.tabCapture`, sitios como YouTube y Dailymotion no pueden entrar en fullscreen HTML5 real mediante el botón del reproductor.
+
+Sí funciona:
+
+* fullscreen cuando la extensión está OFF;
+* F11 del navegador.
+
+Esto coincide con la limitación conocida de Chromium relacionada con self-capture y `requestFullscreen()`.
+
+Quiero implementar una **prueba experimental controlada** de una arquitectura alternativa que permita mantener fullscreen nativo cuando sea posible.
+
+NO reemplaces todavía el sistema actual de `tabCapture`.
+
+---
+
+# 1. Backup obligatorio
+
+Antes de modificar archivos activos:
+
+1. Guarda un snapshot completo de la versión actual en:
+
+`old_versions/v0.8/`
+
+Si la versión actual del manifest es diferente, usa el número real actual.
+
+2. No sobrescribas backups existentes.
+3. No copies `old_versions` dentro del snapshot.
+4. Después del backup, modifica solamente archivos activos.
+
+---
+
+# 2. Objetivo experimental
+
+Agregar un segundo backend de audio:
+
+## Backend A — In-page Web Audio
+
+Cuando sea técnicamente posible:
+
+```text
+HTMLMediaElement
+    ↓
+createMediaElementSource()
+    ↓
+EQ
+    ↓
+AnalyserNode
+    ↓
+Gain
+    ↓
+audioContext.destination
+```
+
+Este modo NO debe usar `chrome.tabCapture`.
+
+El objetivo es verificar si:
+
+* volumen funciona;
+* EQ funciona;
+* spectrum analyzer funciona;
+* fullscreen HTML5 nativo funciona.
+
+---
+
+# 3. Backend actual como fallback
+
+Mantener intacto el backend existente:
+
+```text
+chrome.tabCapture
+    ↓
+offscreen document
+    ↓
+Web Audio
+```
+
+No eliminarlo.
+
+No degradarlo.
+
+No modificarlo innecesariamente.
+
+Si el modo in-page no puede funcionar en un sitio, la arquitectura debe poder seguir usando el backend actual.
+
+---
+
+# 4. Esta versión es experimental
+
+No cambiar todavía el comportamiento normal de producción de forma agresiva.
+
+Puedes:
+
+* añadir un modo experimental;
+* añadir una selección automática muy conservadora;
+* o añadir temporalmente un flag interno.
+
+Prioriza poder probar claramente ambos backends.
+
+El objetivo principal es evaluar viabilidad.
+
+---
+
+# 5. Permisos
+
+Para implementar el modo in-page, analiza qué permisos son realmente necesarios.
+
+Probablemente puedan ser necesarios:
+
+```text
+activeTab
+scripting
+```
+
+No agregues:
+
+```text
+<all_urls>
+```
+
+ni host permissions amplios de forma automática.
+
+Preferir activación bajo acción explícita del usuario.
+
+Si para una implementación fiable necesitas host permissions adicionales, explica claramente el motivo antes de agregarlos.
+
+Mantener la filosofía de permisos mínimos.
+
+---
+
+# 6. Content/injected audio controller
+
+Implementa una capa separada para controlar audio dentro de la página.
+
+Puede usar:
+
+* content script;
+* script inyectado mediante `chrome.scripting`;
+* otra solución técnicamente apropiada.
+
+Debe localizar elementos:
+
+```text
+video
+audio
+```
+
+y procesarlos mediante Web Audio API.
+
+---
+
+# 7. No modificar contenido visual de la página
+
+El modo in-page NO debe:
+
+* cambiar estilos;
+* insertar controles visibles;
+* modificar layout;
+* alterar DOM salvo lo estrictamente necesario para controlar audio;
+* leer contenido textual de la página.
+
+Solo debe interactuar con elementos multimedia.
+
+---
+
+# 8. HTMLMediaElement
+
+Para cada elemento `video` o `audio` apropiado:
+
+usar conceptualmente:
+
+```javascript
+audioContext.createMediaElementSource(mediaElement)
+```
+
+y conectar a la cadena DSP.
+
+Evitar conectar el mismo elemento más de una vez.
+
+Mantener un registro por elemento procesado.
+
+---
+
+# 9. Elementos multimedia dinámicos
+
+Sitios como YouTube pueden reemplazar o recrear elementos durante navegación SPA.
+
+El modo experimental debe manejar razonablemente:
+
+* cambio de video;
+* navegación interna;
+* reemplazo del `<video>`;
+* aparición tardía de elementos.
+
+Puede utilizarse `MutationObserver` si es necesario.
+
+Evitar observación excesivamente agresiva.
+
+---
+
+# 10. Cadena DSP in-page
+
+Replicar conceptualmente la cadena ya existente:
+
+```text
+MediaElementSource
+ ↓
+30 Hz
+ ↓
+90 Hz
+ ↓
+300 Hz
+ ↓
+1 kHz
+ ↓
+3 kHz
+ ↓
+8 kHz
+ ↓
+15 kHz
+ ↓
+AnalyserNode
+ ↓
+Master Gain
+ ↓
+Destination
+```
+
+Mantener:
+
+* mismas frecuencias;
+* mismos tipos de filtro;
+* mismo rango ±12 dB;
+* mismos presets;
+* mismo comportamiento de mute;
+* mismo master volume;
+* mismo smoothing.
+
+No introducir diferencias audibles innecesarias entre backends.
+
+---
+
+# 11. Fullscreen
+
+El objetivo central es:
+
+Con backend in-page activo:
+
+* YouTube debe poder entrar en fullscreen real;
+* Dailymotion debe poder entrar en fullscreen real;
+* Chrome UI debe desaparecer como normalmente;
+* no debe requerirse F11.
+
+No interceptar ni modificar `requestFullscreen()`.
+
+La solución debe permitir que la página use su fullscreen nativo.
+
+---
+
+# 12. Audio original
+
+Al conectar un `HTMLMediaElement` con `createMediaElementSource`, evita audio duplicado.
+
+Debe existir una única ruta audible.
+
+No permitir:
+
+```text
+audio original
++
+audio procesado
+```
+
+simultáneamente.
+
+---
+
+# 13. CORS / DRM / restricciones
+
+Ten en cuenta que algunos sitios pueden impedir o limitar procesamiento con `MediaElementAudioSourceNode`, especialmente por:
+
+* CORS;
+* DRM;
+* media protegida;
+* implementación interna del sitio.
+
+En esos casos:
+
+* no romper reproducción;
+* detectar fallo;
+* limpiar cualquier estado parcial;
+* permitir fallback a `tabCapture`.
+
+---
+
+# 14. Fallback automático
+
+Diseñar una estrategia clara:
+
+```text
+Intentar in-page
+    ↓
+si funciona
+    → usar in-page
+si falla
+    → usar tabCapture
+```
+
+No mezclar ambos backends simultáneamente sobre la misma pestaña.
+
+Nunca procesar dos veces el mismo audio.
+
+---
+
+# 15. Estado del backend
+
+Agregar internamente un estado por pestaña:
+
+```text
+backend: "in-page"
+```
+
+o:
+
+```text
+backend: "tab-capture"
+```
+
+La UI puede mostrar temporalmente un indicador discreto durante esta etapa experimental, por ejemplo:
+
+```text
+Mode: Fullscreen compatible
+```
+
+o:
+
+```text
+Mode: Capture fallback
+```
+
+No es obligatorio mantener este texto en la versión final.
+
+---
+
+# 16. Volumen inicial seguro
+
+Mantener regla absoluta:
+
+Cada nueva activación comienza en:
+
+```text
+Volume 100%
+Mute OFF
+```
+
+No aplicar automáticamente amplificación previa.
+
+---
+
+# 17. EQ y presets
+
+Mantener intacto:
+
+* EQ ON/OFF;
+* 7 bandas;
+* presets de fábrica;
+* presets personalizados;
+* Custom;
+* storage.
+
+No cambiar estructura de presets.
+
+---
+
+# 18. Spectrum Analyzer
+
+En modo in-page, usar un `AnalyserNode` equivalente al backend actual.
+
+El analizador debe seguir mostrando:
+
+```text
+after EQ / before master volume & mute
+```
+
+igual que ahora.
+
+No almacenar FFT ni audio.
+
+---
+
+# 19. Backend y popup
+
+El popup debe poder consultar:
+
+* si Audio Processing está ON;
+* qué backend está activo;
+* estado Volume;
+* EQ;
+* Mute;
+* Analyzer;
+* Preset.
+
+No duplicar dos sistemas de estado independientes si puede evitarse.
+
+---
+
+# 20. Arquitectura compartida
+
+Evita copiar y pegar toda la lógica DSP en dos lugares si puede factorizarse de forma razonable.
+
+Sin embargo, NO hagas un refactor masivo del proyecto solo por elegancia.
+
+Prioriza:
+
+1. bajo riesgo;
+2. claridad;
+3. compatibilidad con versión existente.
+
+---
+
+# 21. Desactivación
+
+Al apagar Audio Processing:
+
+si backend = in-page:
+
+* desconectar nodos;
+* restaurar reproducción normal;
+* cerrar AudioContext si corresponde;
+* dejar el `<video>/<audio>` funcionando normalmente;
+* liberar observers/listeners.
+
+si backend = tabCapture:
+
+* mantener cleanup actual.
+
+---
+
+# 22. Cambio de pestaña
+
+Mantener independencia completa entre pestañas.
+
+Una pestaña puede usar:
+
+```text
+in-page
+```
+
+y otra:
+
+```text
+tab-capture
+```
+
+simultáneamente.
+
+---
+
+# 23. Evitar conflictos
+
+No permitir:
+
+* dos AudioContexts procesando el mismo media element;
+* dos backends activos simultáneamente en una pestaña;
+* doble conexión de `MediaElementSource`;
+* audio duplicado;
+* sesiones zombie.
+
+---
+
+# 24. Popup cerrado
+
+Cerrar el popup no debe detener el procesamiento.
+
+El modo in-page debe continuar funcionando mientras la pestaña exista y Audio Processing esté ON.
+
+---
+
+# 25. Navegación SPA
+
+Probar especialmente YouTube.
+
+Ejemplo:
+
+1. activar extensión;
+2. reproducir video;
+3. cambiar a otro video sin recargar página;
+4. confirmar que el audio sigue procesándose;
+5. confirmar fullscreen.
+
+---
+
+# 26. Navegación normal
+
+Si la pestaña navega a otro dominio o página:
+
+* limpiar estado viejo;
+* volver a detectar media;
+* no mantener referencias a documentos anteriores.
+
+---
+
+# 27. Páginas sin media
+
+Si no existe:
+
+```text
+video
+audio
+```
+
+el modo in-page no debe romper nada.
+
+Puede:
+
+* esperar aparición de media;
+* o usar fallback si corresponde.
+
+---
+
+# 28. Mensajes de error
+
+Usar mensajes simples.
+
+Ejemplos:
+
+```text
+Fullscreen-friendly mode unavailable.
+Using capture mode.
+```
+
+o:
+
+```text
+Unable to process media on this page.
+```
+
+No mostrar errores técnicos largos.
+
+---
+
+# 29. Diagnóstico temporal
+
+Durante esta versión experimental, puedes agregar `console.debug` moderado para indicar:
+
+```text
+backend selected
+media element detected
+fallback triggered
+cleanup
+```
+
+Evitar spam.
+
+Estos logs pueden eliminarse antes de v1.0.
+
+---
+
+# 30. Privacidad
+
+Aunque exista código inyectado, mantener política estricta:
+
+NO leer:
+
+* texto;
+* formularios;
+* contraseñas;
+* cookies;
+* historial;
+* DOM general más allá de localizar `video/audio`.
+
+NO transmitir información.
+
+NO registrar URLs para analytics.
+
+Todo local.
+
+---
+
+# 31. Storage
+
+`chrome.storage.local` sigue reservado a presets personalizados.
+
+No almacenar:
+
+* contenido de media;
+* historial de sitios;
+* backend usado por sitio;
+* URLs.
+
+---
+
+# 32. Manifest
+
+Actualizar versión experimental a:
+
+```text
+0.9.0
+```
+
+Permisos existentes:
+
+```text
+offscreen
+tabCapture
+storage
+```
+
+Agregar solamente los permisos mínimos necesarios para el backend in-page.
+
+Preferencia:
+
+```text
+activeTab
+scripting
+```
+
+si son suficientes.
+
+No agregar otros sin justificación.
+
+---
+
+# 33. README
+
+Actualizar brevemente como versión experimental.
+
+Mencionar:
+
+* nuevo backend fullscreen-friendly;
+* fallback a tabCapture;
+* fullscreen HTML5 como objetivo;
+* limitaciones con DRM/CORS;
+* permisos nuevos y finalidad exacta;
+* procesamiento sigue siendo local.
+
+---
+
+# 34. Pruebas obligatorias
+
+## Test A — YouTube
+
+1. Extension OFF.
+2. Fullscreen nativo.
+3. Confirmar funcionamiento.
+
+Luego:
+
+1. Audio Processing ON.
+2. Confirmar backend in-page.
+3. Probar Volume.
+4. Probar EQ.
+5. Probar Analyzer.
+6. Entrar fullscreen mediante botón de YouTube.
+
+Resultado esperado:
+
+```text
+fullscreen real
+Chrome UI oculta
+```
+
+---
+
+# 35. Test B — Dailymotion
+
+Repetir pruebas.
+
+Debe permitir fullscreen real en modo in-page.
+
+---
+
+# 36. Test C — Fallback
+
+Buscar o simular una página donde in-page falle.
+
+Confirmar:
+
+```text
+backend → tabCapture
+```
+
+y funcionalidad actual intacta.
+
+---
+
+# 37. Test D — Volumen
+
+In-page:
+
+```text
+100 → 150 → 50
+```
+
+Debe cambiar suavemente.
+
+---
+
+# 38. Test E — EQ
+
+Aplicar Soft V.
+
+Confirmar respuesta audible.
+
+---
+
+# 39. Test F — Analyzer
+
+Confirmar espectro real.
+
+---
+
+# 40. Test G — Fullscreen + controls
+
+En fullscreen:
+
+* cambiar volumen desde controles del sitio si corresponde;
+* salir de fullscreen;
+* confirmar que extensión sigue activa.
+
+---
+
+# 41. Test H — SPA
+
+YouTube:
+
+* activar procesamiento;
+* cambiar video;
+* reproducir nuevo video;
+* entrar fullscreen.
+
+---
+
+# 42. Test I — OFF
+
+Apagar Audio Processing.
+
+Confirmar:
+
+* audio vuelve a ruta normal;
+* fullscreen sigue funcionando;
+* no queda procesamiento activo.
+
+---
+
+# 43. Test J — Dos tabs
+
+Tab A:
+
+```text
+in-page
+```
+
+Tab B:
+
+```text
+fallback tabCapture
+```
+
+Ambas deben funcionar independientemente.
+
+---
+
+# 44. No reemplazar producción todavía
+
+Muy importante:
+
+No elimines `tabCapture`.
+
+No conviertas esta prueba en una reescritura total.
+
+La finalidad es evaluar si el backend in-page es suficientemente fiable para ser backend preferido en una versión futura.
+
+---
+
+# 45. Al finalizar
+
+Devuélveme un resumen indicando:
+
+* archivos modificados;
+* backup creado;
+* permisos agregados;
+* cómo funciona el backend in-page;
+* cómo detecta elementos multimedia;
+* cómo evita doble audio;
+* cómo maneja navegación SPA;
+* cómo elige fallback;
+* cómo mantiene estado por pestaña;
+* cómo funciona Analyzer en modo in-page;
+* limitaciones detectadas;
+* pasos exactos para probar YouTube y Dailymotion;
+* confirmación de que `tabCapture` sigue intacto como fallback.

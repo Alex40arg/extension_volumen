@@ -1,0 +1,159 @@
+Lee `DEVELOPMENT_SPEC.md` antes de modificar archivos.
+
+Quiero cerrar esta prueba experimental y volver a la última versión estable.
+
+## Objetivo
+
+1. Guardar la versión actual experimental como `v0.9`.
+2. Restaurar completamente la versión estable desde `old_versions/v0.8/`.
+3. Mantener intactas tanto `old_versions/v0.8/` como la nueva `old_versions/v0.9/`.
+
+---
+
+## 1. Backup de la versión actual
+
+Antes de restaurar nada:
+
+1. Crear:
+
+`old_versions/v0.9/`
+
+2. Copiar dentro de esa carpeta un snapshot completo de la versión actual del proyecto.
+
+3. Excluir:
+
+`old_versions/`
+
+del backup para evitar recursión.
+
+4. No sobrescribir `old_versions/v0.9/` si ya existe.
+
+5. Verificar que la copia incluya todos los archivos activos relevantes de la versión experimental actual.
+
+La v0.9 debe conservarse aunque tenga fallos, porque forma parte del historial técnico del proyecto.
+
+---
+
+## 2. Restauración desde v0.8
+
+Después de completar y verificar el backup de v0.9:
+
+Restaurar los archivos activos del proyecto usando como fuente:
+
+`old_versions/v0.8/`
+
+IMPORTANTE:
+
+* copiar los archivos desde `old_versions/v0.8/` hacia sus ubicaciones originales en la raíz del proyecto;
+* NO moverlos;
+* NO borrar `old_versions/v0.8/`;
+* NO modificar su contenido;
+* debe quedar como snapshot histórico intacto.
+
+---
+
+## 3. Restaurar estructura completa
+
+Restaurar todos los archivos y carpetas que formen parte de v0.8, incluyendo según corresponda:
+
+* `manifest.json`
+* `popup/`
+* `background/`
+* `audio/`
+* `shared/`
+* `tests/`
+* `README.md`
+* otros archivos propios de esa versión
+
+No restaurar:
+
+* `old_versions/`
+* archivos históricos internos
+* backups dentro de backups
+
+---
+
+## 4. Eliminar archivos exclusivos de v0.9
+
+Después de restaurar v0.8, revisar si la versión experimental v0.9 agregó archivos o carpetas que NO existen en v0.8.
+
+Si existen archivos exclusivos de v0.9 en la raíz activa del proyecto, eliminarlos de la versión activa después de confirmar que ya están preservados dentro de:
+
+`old_versions/v0.9/`
+
+Ejemplos posibles:
+
+* controladores in-page
+* scripts experimentales
+* archivos relacionados con backend híbrido
+* cualquier archivo nuevo introducido exclusivamente por v0.9
+
+No borrar nada dentro de `old_versions`.
+
+---
+
+## 5. Manifest
+
+El `manifest.json` activo final debe ser exactamente el correspondiente a v0.8.
+
+Esto implica volver a los permisos de la versión estable y eliminar permisos experimentales de v0.9 si no existían en v0.8.
+
+No mezclar manifest de ambas versiones.
+
+---
+
+## 6. README
+
+Restaurar también el `README.md` de v0.8.
+
+No conservar documentación experimental de v0.9 en los archivos activos.
+
+La documentación de v0.9 quedará preservada dentro de:
+
+`old_versions/v0.9/`
+
+---
+
+## 7. Verificación final
+
+Al terminar, verificar:
+
+1. Existe `old_versions/v0.8/` intacto.
+2. Existe `old_versions/v0.9/` con snapshot completo de la versión experimental actual.
+3. La raíz activa del proyecto coincide con v0.8.
+4. No quedaron archivos exclusivos de v0.9 mezclados con la versión activa.
+5. `manifest.json` corresponde a v0.8.
+6. Permisos activos corresponden a v0.8.
+7. No se modificó ningún snapshot histórico existente.
+8. No se creó recursión de `old_versions`.
+
+---
+
+## 8. No hacer cambios adicionales
+
+No aproveches esta tarea para:
+
+* refactorizar;
+* corregir bugs;
+* cambiar UI;
+* actualizar versiones;
+* modificar DSP;
+* añadir o quitar funciones de v0.8.
+
+La tarea es únicamente:
+
+`preservar v0.9 → restaurar v0.8`
+
+---
+
+## 9. Al finalizar
+
+Devuélveme un resumen breve indicando:
+
+* confirmación de creación de `old_versions/v0.9/`;
+* cantidad de archivos respaldados;
+* archivos/carpetas restaurados desde `old_versions/v0.8/`;
+* archivos exclusivos de v0.9 eliminados de la raíz activa;
+* confirmación de que `old_versions/v0.8/` sigue intacto;
+* versión y permisos finales del `manifest.json`;
+* confirmación de que la raíz activa quedó equivalente a v0.8.
