@@ -4,9 +4,9 @@ const { createHarness, source, clone } = require('./harness.cjs');
 
 (async () => {
   const manifest = JSON.parse(source('manifest.json'));
-  assert.equal(manifest.version, '0.8.0');
+  assert.equal(manifest.version, '0.9.0');
   assert.equal(manifest.minimum_chrome_version, '116');
-  assert.deepEqual(manifest.permissions, ['offscreen', 'tabCapture', 'storage']);
+  assert.deepEqual(manifest.permissions, ['offscreen', 'tabCapture', 'storage', 'activeTab', 'scripting']);
   assert.equal(manifest.host_permissions, undefined);
   for (const file of ['popup/popup.js', 'background/service-worker.js', 'background/presets.js', 'shared/presets.js', 'audio/offscreen.js']) {
     new vm.Script(source(file));
@@ -21,7 +21,7 @@ const { createHarness, source, clone } = require('./harness.cjs');
     assert.equal(result.ok, true, JSON.stringify(result));
     return result;
   };
-  const expectedDefault = { enabled: false, volume: 100, muted: false, eqEnabled: false, analyzerEnabled: false, eqDirty: false, eqGains: [0,0,0,0,0,0,0], selectedPreset: 'Flat' };
+  const expectedDefault = { enabled: false, backend: null, volume: 100, muted: false, eqEnabled: false, analyzerEnabled: false, eqDirty: false, eqGains: [0,0,0,0,0,0,0], selectedPreset: 'Flat' };
   assert.deepEqual(clone((await command('GET_STATE')).state), expectedDefault);
   await command('APPLY_EQ_PRESET', { preset: 'Soft V' });
   assert.equal(h.state.captures, 0, 'Loading while OFF never captures audio');

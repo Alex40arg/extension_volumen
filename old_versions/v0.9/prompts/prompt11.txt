@@ -1,0 +1,192 @@
+Lee `DEVELOPMENT_SPEC.md` y revisa la implementación actual de v0.8.
+
+Quiero realizar únicamente un ajuste de interfaz y lógica del editor de presets.
+
+## Objetivo
+
+Eliminar completamente el formulario adicional de preset que actualmente aparece en el panel **Audio** al pulsar `Save preset`.
+
+Ese formulario adicional provoca crecimiento vertical y scroll.
+
+Quiero reutilizar el área ya existente debajo del ecualizador, donde actualmente están:
+
+* label `PRESET`
+* selector de presets
+* botones `Save preset`, `Rename`, `Delete`
+
+No cambies ninguna otra parte de la interfaz ni funcionalidad.
+
+---
+
+## Estado normal
+
+Mantener:
+
+```text
+PRESET   [ Custom ▼ ]
+
+[ Save preset ] [ Rename ] [ Delete ]
+```
+
+---
+
+## Al pulsar `Save preset`
+
+Transformar temporalmente esa misma zona en un editor inline:
+
+```text
+NAME     [ campo de texto ]
+
+[ Save ] [ Cancel ]
+```
+
+Comportamiento:
+
+* ocultar temporalmente el selector de presets;
+* mostrar un input de texto en exactamente esa zona;
+* cambiar el label `PRESET` por `NAME`;
+* convertir el botón `Save preset` en `Save`;
+* convertir el botón `Rename` en `Cancel`;
+* ocultar o deshabilitar el botón `Delete` durante la edición;
+* dar foco automáticamente al campo de nombre.
+
+No agregar nuevas filas ni aumentar la altura del panel.
+
+---
+
+## Guardar
+
+Al pulsar `Save`:
+
+* usar la misma lógica existente para guardar el preset;
+* mantener toda la validación actual de nombres;
+* guardar en `chrome.storage.local` como actualmente;
+* seleccionar automáticamente el nuevo preset;
+* salir del modo edición;
+* restaurar:
+
+```text
+PRESET   [ Nuevo preset ▼ ]
+
+[ Save preset ] [ Rename ] [ Delete ]
+```
+
+No modificar la curva EQ.
+
+---
+
+## Cancelar
+
+Al pulsar `Cancel`:
+
+* no guardar nada;
+* no modificar la curva;
+* salir del modo edición;
+* restaurar inmediatamente el selector y botones normales.
+
+---
+
+## Rename
+
+Reutilizar el mismo editor inline para `Rename`.
+
+Al pulsar `Rename` sobre un preset personalizado:
+
+```text
+NAME     [ nombre actual ]
+
+[ Save ] [ Cancel ]
+```
+
+* precargar el nombre actual;
+* seleccionar el texto del input para facilitar edición;
+* `Save` debe ejecutar la lógica actual de rename;
+* `Cancel` debe cancelar sin cambios.
+
+No permitir Rename de presets de fábrica, igual que actualmente.
+
+---
+
+## Implementación recomendada
+
+Preferir reutilizar elementos HTML existentes o tener:
+
+* selector;
+* input;
+
+en el mismo contenedor y alternar visibilidad mediante `hidden`, clases CSS o mecanismo equivalente.
+
+Evitar crear y destruir elementos innecesariamente.
+
+Puede utilizarse un estado simple:
+
+```text
+presetEditMode = null
+presetEditMode = "save"
+presetEditMode = "rename"
+```
+
+o equivalente.
+
+---
+
+## Eliminar formulario anterior
+
+Eliminar completamente del panel Audio:
+
+* label `Save preset`;
+* label `Name`;
+* input adicional;
+* botones `Save` / `Cancel`;
+* estilos exclusivos;
+* listeners o referencias JS asociados exclusivamente a ese formulario.
+
+El panel Audio debe volver a ser compacto.
+
+---
+
+## Importante
+
+No modificar:
+
+* DSP;
+* offscreen audio;
+* Spectrum Analyzer;
+* EQ;
+* volumen;
+* mute;
+* presets de fábrica;
+* almacenamiento;
+* permisos;
+* manifest;
+* arquitectura general.
+
+No realizar ningún rediseño adicional.
+
+Este cambio debe limitarse a:
+
+* `popup.html`;
+* `popup.css`;
+* `popup.js`;
+
+salvo que exista una necesidad técnica real.
+
+---
+
+## Resultado esperado
+
+El popup debe conservar la misma altura independientemente de si:
+
+* está en modo normal;
+* está guardando un preset;
+* está renombrando un preset.
+
+No debe aparecer scroll nuevo por abrir el editor.
+
+Al finalizar, indica brevemente:
+
+* archivos modificados;
+* cómo implementaste `presetEditMode`;
+* cómo alternas selector/input;
+* confirmación de que el formulario adicional del panel Audio fue eliminado;
+* confirmación de que no modificaste ninguna funcionalidad de audio.

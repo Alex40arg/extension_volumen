@@ -1,6 +1,7 @@
 const EQ_BAND_COUNT = 7;
 const DEFAULT_STATE = Object.freeze({
   enabled: false,
+  backend: null,
   volume: 100,
   muted: false,
   eqEnabled: false,
@@ -26,17 +27,14 @@ const elements = {
   presetSelect: document.querySelector("#preset-select"),
   factoryPresets: document.querySelector("#factory-presets"),
   customPresets: document.querySelector("#custom-presets"),
+  presetLabel: document.querySelector("#preset-label"),
+  presetName: document.querySelector("#preset-name"),
   savePreset: document.querySelector("#save-preset"),
   renamePreset: document.querySelector("#rename-preset"),
   deletePreset: document.querySelector("#delete-preset"),
-  presetEditor: document.querySelector("#preset-editor"),
-  presetEditorTitle: document.querySelector("#preset-editor-title"),
-  presetNameRow: document.querySelector("#preset-name-row"),
-  presetName: document.querySelector("#preset-name"),
-  confirmPreset: document.querySelector("#confirm-preset"),
-  cancelPreset: document.querySelector("#cancel-preset"),
   presetMessage: document.querySelector("#preset-message"),
   stateBadge: document.querySelector("#state-badge"),
+  backendMode: document.querySelector("#backend-mode"),
   message: document.querySelector("#message")
 };
 
@@ -49,15 +47,16 @@ let eqRequestNumber = 0;
 let eqBusy = false;
 let customPresets = [];
 let presetBusy = false;
-let presetEditor = null;
+let presetEditMode = null;
+let presetEditContext = null;
 let presetMessageTimer;
 let analyzerBusy = false;
 let popupClosed = false;
 const spectrum = new SpectrumView(
   document.querySelector("#spectrum-canvas"),
   document.querySelector("#spectrum-status"),
-  // Direct local request: no worker relay, no capture creation, one in flight.
-  () => chrome.runtime.sendMessage({ target: "offscreen", type: "GET_SPECTRUM", tabId: currentTabId })
+  // The worker selects the active backend; there is still only one request in flight.
+  () => chrome.runtime.sendMessage({ target: "service-worker", type: "GET_SPECTRUM", tabId: currentTabId })
 );
 
 function renderAnalyzer() {
@@ -95,14 +94,23 @@ function updatePresetList(presets) {
 function renderPresetControls() {
   const selected = customPresets.find((preset) => preset.id === currentState.selectedPreset);
   const available = Object.hasOwn(EQ_PRESETS, currentState.selectedPreset) || selected;
+  const editingName = presetEditMode === "save" || presetEditMode === "rename";
+  const editing = presetEditMode !== null;
   elements.presetSelect.value = available ? currentState.selectedPreset : "Custom";
-  elements.presetSelect.disabled = busy || eqBusy || currentTabId === null;
-  elements.savePreset.disabled = busy || eqBusy || presetBusy || !currentState.eqDirty
-    || currentState.selectedPreset !== "Custom" || !validPresetGains(currentState.eqGains);
-  elements.renamePreset.disabled = presetBusy || !selected;
+  elements.presetLabel.textContent = editingName ? "Name" : presetEditMode === "delete" ? "Delete" : "Preset";
+  elements.presetLabel.htmlFor = editingName ? "preset-name" : "preset-select";
+  elements.presetSelect.hidden = editingName;
+  elements.presetName.hidden = !editingName;
+  elements.savePreset.textContent = editing ? (presetEditMode === "delete" ? "Delete" : "Save") : "Save preset";
+  elements.renamePreset.textContent = editing ? "Cancel" : "Rename";
+  elements.deletePreset.hidden = editing;
+  elements.presetSelect.disabled = editing || busy || eqBusy || currentTabId === null;
+  elements.savePreset.disabled = editing
+    ? presetBusy
+    : busy || eqBusy || presetBusy || !currentState.eqDirty
+      || currentState.selectedPreset !== "Custom" || !validPresetGains(currentState.eqGains);
+  elements.renamePreset.disabled = editing ? presetBusy : presetBusy || !selected;
   elements.deletePreset.disabled = presetBusy || !selected;
-  elements.confirmPreset.disabled = presetBusy;
-  elements.cancelPreset.disabled = presetBusy;
   elements.presetName.disabled = presetBusy;
 }
 
@@ -126,32 +134,34 @@ function openPresetEditor(action) {
   if (action === "SAVE" && elements.savePreset.disabled) return;
   const selected = customPresets.find((preset) => preset.id === currentState.selectedPreset);
   if (action !== "SAVE" && !selected) return;
-  presetEditor = { action, id: selected?.id, gains: [...currentState.eqGains] };
+  presetEditMode = action.toLowerCase();
+  presetEditContext = { id: selected?.id, gains: [...currentState.eqGains] };
   showPresetMessage();
-  elements.presetEditor.hidden = false;
-  elements.presetNameRow.hidden = action === "DELETE";
   elements.presetName.value = action === "RENAME" ? selected.name : "";
-  elements.presetEditorTitle.textContent = action === "DELETE"
-    ? `Delete “${selected.name}”?`
-    : action === "RENAME" ? "Rename preset" : "Save preset";
-  elements.confirmPreset.textContent = { SAVE: "Save", RENAME: "Rename", DELETE: "Delete" }[action];
   renderPresetControls();
-  (action === "DELETE" ? elements.cancelPreset : elements.presetName).focus();
+  if (action === "DELETE") {
+    elements.renamePreset.focus();
+  } else {
+    elements.presetName.focus();
+    if (action === "RENAME") elements.presetName.select();
+  }
 }
 
 function closePresetEditor() {
-  const action = presetEditor?.action;
-  presetEditor = null;
-  elements.presetEditor.hidden = true;
-  const trigger = action === "RENAME" ? elements.renamePreset : action === "DELETE" ? elements.deletePreset : elements.savePreset;
+  const action = presetEditMode;
+  presetEditMode = null;
+  presetEditContext = null;
+  renderPresetControls();
+  elements.presetName.value = "";
+  const trigger = action === "rename" ? elements.renamePreset : action === "delete" ? elements.deletePreset : elements.savePreset;
   (trigger.disabled ? elements.presetSelect : trigger).focus();
 }
 
-async function commitPreset(event) {
-  event.preventDefault();
-  if (presetBusy || !presetEditor) return;
-  const edit = presetEditor;
-  const result = edit.action === "DELETE" ? {} : validatePresetName(elements.presetName.value, customPresets, edit.action === "RENAME" ? edit.id : null);
+async function commitPreset() {
+  if (presetBusy || !presetEditMode || !presetEditContext) return;
+  const action = presetEditMode.toUpperCase();
+  const edit = presetEditContext;
+  const result = action === "DELETE" ? {} : validatePresetName(elements.presetName.value, customPresets, action === "RENAME" ? edit.id : null);
   if (result.error) {
     showPresetMessage(result.error, true);
     elements.presetName.focus();
@@ -160,14 +170,14 @@ async function commitPreset(event) {
   presetBusy = true;
   renderPresetControls();
   try {
-    const data = edit.action === "SAVE"
+    const data = action === "SAVE"
       ? { name: result.name, gains: edit.gains, tabId: currentTabId }
-      : { id: edit.id, ...(edit.action === "RENAME" ? { name: result.name } : {}) };
-    const response = await presetCommand(`PRESETS_${edit.action}`, data);
+      : { id: edit.id, ...(action === "RENAME" ? { name: result.name } : {}) };
+    const response = await presetCommand(`PRESETS_${action}`, data);
     updatePresetList(response.presets);
     // Re-read the live tab; storage writes must not restore an older volume/EQ snapshot.
     await refreshState();
-    showPresetMessage(response.warning || { SAVE: "Preset saved.", RENAME: "Preset renamed.", DELETE: "Preset deleted." }[edit.action], Boolean(response.warning));
+    showPresetMessage(response.warning || { SAVE: "Preset saved.", RENAME: "Preset renamed.", DELETE: "Preset deleted." }[action], Boolean(response.warning));
     presetBusy = false;
     renderPresetControls();
     closePresetEditor();
@@ -197,6 +207,7 @@ function formatDb(value) {
 function render(state = currentState) {
   currentState = {
     enabled: Boolean(state.enabled),
+    backend: state.backend === "in-page" || state.backend === "tab-capture" ? state.backend : null,
     volume: Number.isFinite(state.volume) ? state.volume : 100,
     muted: Boolean(state.muted),
     eqEnabled: Boolean(state.eqEnabled),
@@ -231,6 +242,9 @@ function render(state = currentState) {
   });
   elements.stateBadge.textContent = currentState.enabled ? "ON" : "OFF";
   elements.stateBadge.className = `badge ${currentState.enabled ? "badge-on" : "badge-off"}`;
+  elements.backendMode.textContent = currentState.backend === "in-page"
+    ? "Mode: Fullscreen compatible"
+    : currentState.backend === "tab-capture" ? "Mode: Capture fallback" : "Mode: inactive";
 }
 
 async function sendCommand(type, data = {}) {
@@ -424,12 +438,20 @@ window.addEventListener("pagehide", () => {
   spectrum.stop();
 });
 
-elements.savePreset.addEventListener("click", () => openPresetEditor("SAVE"));
-elements.renamePreset.addEventListener("click", () => openPresetEditor("RENAME"));
+elements.savePreset.addEventListener("click", () => {
+  if (presetEditMode) void commitPreset();
+  else openPresetEditor("SAVE");
+});
+elements.renamePreset.addEventListener("click", () => {
+  if (presetEditMode) closePresetEditor();
+  else openPresetEditor("RENAME");
+});
 elements.deletePreset.addEventListener("click", () => openPresetEditor("DELETE"));
-elements.cancelPreset.addEventListener("click", closePresetEditor);
-elements.presetEditor.addEventListener("submit", (event) => { void commitPreset(event); });
-elements.presetEditor.addEventListener("keydown", (event) => {
+elements.presetName.addEventListener("keydown", (event) => {
+  if (event.key === "Enter" && !presetBusy) {
+    event.preventDefault();
+    void commitPreset();
+  }
   if (event.key === "Escape" && !presetBusy) {
     event.preventDefault();
     closePresetEditor();

@@ -11,7 +11,7 @@
       <header class="header">
         <div>
           <p class="eyebrow">PER-TAB AUDIO CONSOLE</p>
-          <h1 id="extension-title">Tab Audio Control</h1>
+          <h1 id="extension-title">Alex's Tab Audio Control</h1>
         </div>
         <p id="preset-message" class="preset-message" role="status" aria-live="polite" hidden></p>
         <div class="header-state" aria-label="Current processing state">
@@ -27,6 +27,7 @@
               <p class="section-eyebrow">AUDIO</p>
               <h2 id="audio-panel-title">Current tab</h2>
             </div>
+            <p id="backend-mode" class="backend-mode">Mode: inactive</p>
           </div>
 
           <div class="processing-row" aria-labelledby="processing-label">
@@ -57,18 +58,6 @@
               <button id="mute-button" type="button" aria-pressed="false">Mute</button>
             </div>
           </fieldset>
-
-          <form id="preset-editor" class="preset-editor" aria-labelledby="preset-editor-title" hidden>
-            <p id="preset-editor-title"></p>
-            <div id="preset-name-row" class="preset-name-row">
-              <label for="preset-name">Name</label>
-              <input id="preset-name" type="text" maxlength="30" autocomplete="off" aria-describedby="preset-message">
-            </div>
-            <div class="preset-actions">
-              <button id="confirm-preset" type="submit">Save</button>
-              <button id="cancel-preset" type="button">Cancel</button>
-            </div>
-          </form>
 
           <p id="message" class="message" role="alert" aria-live="assertive" hidden></p>
         </section>
@@ -138,12 +127,13 @@
           </fieldset>
             <div class="eq-footer">
               <div class="preset-control">
-                <label for="preset-select">Preset</label>
+                <label id="preset-label" for="preset-select">Preset</label>
                 <select id="preset-select" aria-label="Equalizer preset">
                   <optgroup id="factory-presets" label="Factory presets"></optgroup>
                   <optgroup id="custom-presets" label="Custom presets"></optgroup>
                   <option value="Custom" disabled>Custom</option>
                 </select>
+                <input id="preset-name" type="text" maxlength="30" autocomplete="off" aria-label="Preset name" aria-describedby="preset-message" hidden>
               </div>
               <div class="preset-actions" aria-label="Manage custom presets">
                 <button id="save-preset" type="button" disabled>Save preset</button>

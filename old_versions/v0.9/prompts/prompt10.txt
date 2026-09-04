@@ -1,0 +1,484 @@
+Lee completamente `DEVELOPMENT_SPEC.md` y `README.md` antes de modificar el proyecto.
+
+La versión actual `v0.7` funciona correctamente en lo funcional, pero el popup quedó demasiado alto y Chrome muestra scroll vertical.
+
+Objetivo de esta versión: **compactar y pulir la interfaz para que todo el popup quede visible sin scroll**, manteniendo el diseño general y toda la funcionalidad existente.
+
+Esta será la **versión v0.8**.
+
+No agregar nuevas funciones.
+No modificar el motor de audio salvo cambios mínimos estrictamente necesarios.
+No tocar DSP, EQ, presets ni lógica del Spectrum Analyzer excepto lo necesario para el layout.
+
+---
+
+# 1. Backup obligatorio
+
+Antes de modificar los archivos activos:
+
+1. Guarda un snapshot completo de la versión actual en:
+
+`old_versions/v0.7/`
+
+2. Respeta las reglas de backup de `DEVELOPMENT_SPEC.md`.
+
+3. No sobrescribas snapshots existentes.
+
+4. No copies `old_versions` dentro del backup.
+
+5. Después del snapshot, modifica solamente los archivos activos.
+
+---
+
+# 2. Objetivo principal
+
+Eliminar el scroll vertical del popup.
+
+La interfaz debe quedar completamente visible dentro del área útil del popup de Chrome.
+
+Tomar como referencia práctica un máximo aproximado de:
+
+```text id="m1"
+800 x 600
+```
+
+Apuntar a una altura total real del popup cercana a:
+
+```text id="m2"
+580–590 px
+```
+
+para dejar margen y evitar scroll.
+
+Mantener el ancho actual aproximado:
+
+```text id="m3"
+~680 px
+```
+
+---
+
+# 3. Redundancia visual de estado
+
+Actualmente hay demasiados indicadores de encendido.
+
+Eliminar completamente la pequeña card / status box inferior del panel Audio que muestra algo equivalente a:
+
+```text id="m4"
+Audio processing active
+```
+
+Eliminar:
+
+* markup HTML asociado;
+* estilos CSS asociados;
+* lógica JS asociada si existe.
+
+---
+
+# 4. Qué estados conservar
+
+Mantener estos indicadores, que ya son suficientes:
+
+* el toggle local de `Audio processing`
+* el badge global superior derecho `ON/OFF` con punto
+* el toggle local de `Equalizer`
+* el toggle local de `Spectrum Analyzer`
+
+No agregar nuevas señales redundantes de estado.
+
+---
+
+# 5. Compactación general
+
+Reducir altura total del popup sin perjudicar usabilidad.
+
+Hacer ajustes moderados en:
+
+* paddings verticales;
+* márgenes;
+* gaps;
+* espacios entre bloques;
+* altura de paneles;
+* espacio entre título/subtítulo/controles.
+
+No achicar drásticamente la tipografía.
+
+No hacer la interfaz “apretada” o incómoda.
+
+---
+
+# 6. Panel Audio
+
+Compactar el panel Audio.
+
+Mantener:
+
+* título de sección;
+* Current tab;
+* toggle de Audio processing;
+* slider de volumen;
+* porcentaje;
+* botones Reset 100% y Mute.
+
+Eliminar únicamente la card inferior de estado.
+
+Reacomodar el espacio liberado de forma limpia.
+
+---
+
+# 7. Panel Equalizer
+
+Compactar el panel Equalizer manteniendo la legibilidad.
+
+Mantener:
+
+* título;
+* toggle;
+* 7 sliders verticales;
+* labels de frecuencia;
+* labels de dB;
+* selector de preset;
+* botones Save / Rename / Delete.
+
+Reducir moderadamente la altura de los faders.
+
+Ejemplo orientativo:
+
+* reducir la zona vertical útil de los sliders;
+* mantener claramente visible:
+
+  * +12
+  * 0
+  * -12
+
+No perder la lectura visual de curvas tipo V.
+
+---
+
+# 8. Sliders EQ
+
+Acortar los faders un poco, pero no demasiado.
+
+Deben seguir siendo cómodos y visuales.
+
+La reducción debe ayudar a ganar altura total y permitir que el Spectrum Analyzer suba.
+
+Mantener:
+
+* 30
+* 90
+* 300
+* 1k
+* 3k
+* 8k
+* 15k
+
+como labels claramente visibles.
+
+---
+
+# 9. Spectrum Analyzer
+
+Mantener el Spectrum Analyzer ocupando todo el ancho inferior.
+
+No moverlo a una sola columna.
+
+No hacerlo colapsable en esta versión.
+
+Debe permanecer siempre visible dentro del popup, sin necesidad de scroll.
+
+Compactar moderadamente su altura.
+
+Altura útil orientativa del área gráfica:
+
+```text id="m5"
+90–105 px
+```
+
+si eso ayuda a eliminar el scroll.
+
+---
+
+# 10. Analizador: diseño
+
+Mantener:
+
+* título `Spectrum Analyzer`
+* nota descriptiva tipo:
+  `Live · after EQ / before volume & mute`
+* toggle ON/OFF
+* canvas con barras
+* labels de frecuencia
+
+No cambiar el funcionamiento del analizador.
+
+---
+
+# 11. Layout general
+
+Mantener la estructura:
+
+```text id="m6"
+arriba: header
+medio: Audio + Equalizer
+abajo: Spectrum Analyzer a todo el ancho
+```
+
+No rediseñar completamente el popup.
+
+El objetivo es una compactación elegante, no una nueva versión estética.
+
+---
+
+# 12. Tipografía
+
+Mantener prácticamente igual.
+
+Se permiten ajustes menores de tamaño solo si ayudan a la compactación y no perjudican legibilidad.
+
+No reducir demasiado:
+
+* título principal;
+* porcentaje de volumen;
+* labels de frecuencia;
+* botones.
+
+---
+
+# 13. Botones
+
+Mantener botones suficientemente cómodos:
+
+* Reset 100%
+* Mute
+* Save preset
+* Rename
+* Delete
+
+Si hace falta, reducir un poco padding vertical o altura, pero sin volverlos incómodos.
+
+---
+
+# 14. Header superior
+
+Compactar ligeramente el encabezado superior.
+
+Reducir un poco el espacio vertical de:
+
+* título secundario (`PER-TAB AUDIO CONSOLE`)
+* título principal (`Tab Audio Control`)
+* badge global ON/OFF
+
+Mantener la estética.
+
+---
+
+# 15. Badge global
+
+Mantener el badge superior derecho ON/OFF.
+
+Puede compactarse ligeramente, pero debe seguir siendo visible.
+
+No eliminarlo en esta versión.
+
+---
+
+# 16. Scroll
+
+Objetivo explícito:
+
+```text id="m7"
+No vertical scrollbar
+No horizontal scrollbar
+```
+
+Si después de compactar todavía hubiera scroll, seguir ajustando layout hasta eliminarlo.
+
+Priorizar reducción de espacios antes que reducción de tipografía.
+
+---
+
+# 17. CSS de selección de texto
+
+Mantener la mejora existente:
+
+* desactivar selección accidental global;
+* permitir selección de texto en inputs editables.
+
+No romper esta mejora.
+
+---
+
+# 18. Save preset
+
+Mantener la corrección ya implementada:
+
+* `Save preset` solo habilitado cuando hay cambio manual real en la curva EQ.
+
+No romper esta lógica.
+
+---
+
+# 19. Funcionalidad intacta
+
+Confirmar que el ajuste visual no rompe:
+
+* Audio Processing ON/OFF
+* Volume
+* Reset 100%
+* Mute
+* EQ ON/OFF
+* presets de fábrica
+* presets personalizados
+* estado Custom
+* Spectrum Analyzer ON/OFF
+* independencia por pestaña
+* restauración de EQ por pestaña
+* volumen 100% al reactivar
+
+---
+
+# 20. No agregar funciones nuevas
+
+No implementar en esta versión:
+
+* nuevos presets
+* nuevas bandas
+* visualizador alternativo
+* ventanas extra
+* opciones avanzadas
+* storage adicional
+* iconos externos
+* tooltips complejos
+
+v0.8 es una versión de **compactación y pulido final**.
+
+---
+
+# 21. Permisos
+
+No agregar permisos nuevos.
+
+Mantener exactamente:
+
+```text id="m8"
+offscreen
+tabCapture
+storage
+```
+
+---
+
+# 22. Privacidad
+
+Mantener intacto:
+
+* sin red externa;
+* sin analytics;
+* sin telemetry;
+* sin scripts remotos;
+* sin lectura de páginas;
+* sin historial;
+* sin cookies.
+
+---
+
+# 23. Manifest
+
+Actualizar versión a:
+
+```text id="m9"
+0.8.0
+```
+
+Mantener:
+
+```text id="m10"
+minimum_chrome_version: 116
+```
+
+No cambiar el nombre de la extensión.
+
+---
+
+# 24. README
+
+Actualizar README a v0.8.
+
+Mencionar brevemente:
+
+* popup compactado;
+* eliminación de redundancia visual de estado;
+* Spectrum Analyzer visible sin scroll;
+* mismas funciones de audio/EQ/presets.
+
+Mantener README breve.
+
+---
+
+# 25. Pruebas visuales
+
+Antes de terminar, revisar:
+
+### A. Popup completo
+
+Todo debe verse sin scroll vertical.
+
+### B. Panel Audio
+
+Sin la card `Audio processing active`.
+
+### C. Equalizer
+
+Curva claramente visible.
+
+### D. Spectrum Analyzer
+
+Visible completo sin bajar.
+
+### E. Header
+
+Compacto pero legible.
+
+### F. Botones
+
+Todos visibles y clickeables sin scroll.
+
+### G. Badge global
+
+Sigue mostrando correctamente ON/OFF.
+
+---
+
+# 26. Pruebas funcionales
+
+Confirmar que el rediseño compacto no rompe:
+
+* ON/OFF
+* volumen
+* EQ
+* presets
+* Save / Rename / Delete
+* Spectrum Analyzer
+* persistencia de presets
+* Custom
+* restauración del EQ tras apagar/encender
+
+---
+
+# 27. Al finalizar
+
+Devuélveme un resumen breve indicando:
+
+* archivos modificados;
+* confirmación del backup `old_versions/v0.7/`;
+* altura y ancho finales aproximados del popup;
+* elementos eliminados;
+* principales cambios de compactación;
+* altura final aproximada del área de EQ;
+* altura final aproximada del Spectrum Analyzer;
+* confirmación de eliminación del scroll;
+* confirmación de que no cambiaste DSP ni lógica innecesariamente;
+* confirmación de permisos sin cambios;
+* pasos concretos para probar manualmente la v0.8 en Chrome.

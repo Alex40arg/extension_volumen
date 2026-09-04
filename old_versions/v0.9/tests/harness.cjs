@@ -7,11 +7,14 @@ const root = path.resolve(__dirname, '..');
 const source = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 const clone = (value) => JSON.parse(JSON.stringify(value));
 
-function createHarness(initial = {}) {
-  const state = { storage: clone(initial), writes: 0, captures: 0, failRead: false, failWrite: false, logs: [] };
-  const workerListeners = [], audioListeners = [], removedListeners = [], storageListeners = [];
+function createHarness(initial = {}, options = {}) {
+  const state = {
+    storage: clone(initial), writes: 0, captures: 0, failRead: false, failWrite: false, logs: [],
+    inPageInjected: false, inPageActive: false, inPageBypasses: 0, inPageAnalyzer: false
+  };
+  const workerListeners = [], audioListeners = [], removedListeners = [], updatedListeners = [], storageListeners = [];
   let offscreenExists = false;
-  const logger = { warn: (...args) => state.logs.push(args), error: (...args) => state.logs.push(args), log() {} };
+  const logger = { warn: (...args) => state.logs.push(args), error: (...args) => state.logs.push(args), debug: (...args) => state.logs.push(args), log() {} };
   function dispatch(listeners, message) {
     return new Promise((resolve, reject) => {
       let handled = false;
@@ -60,7 +63,7 @@ function createHarness(initial = {}) {
     } } },
     chrome: { runtime: { onMessage: { addListener: (listener) => audioListeners.push(listener) }, sendMessage } }
   });
-  vm.runInContext(source('shared/presets.js') + '\n' + source('shared/spectrum.js') + '\n' + source('audio/offscreen.js'), audio);
+  vm.runInContext(source('shared/audio-config.js') + '\n' + source('shared/presets.js') + '\n' + source('shared/spectrum.js') + '\n' + source('audio/offscreen.js'), audio);
   const chrome = {
     runtime: {
       getURL: (file) => `chrome-extension://test/${file}`,
@@ -68,8 +71,29 @@ function createHarness(initial = {}) {
       onMessage: { addListener: (listener) => workerListeners.push(listener) }, sendMessage
     },
     offscreen: { async createDocument() { offscreenExists = true; } },
+    scripting: { async executeScript(details) {
+      if (!options.inPage) throw new Error('In-page injection unavailable in the capture regression harness.');
+      if (details.files) {
+        state.inPageInjected = true;
+        return [{}];
+      }
+      const type = details.args?.[1];
+      const data = details.args?.[2] || {};
+      if (!state.inPageInjected) throw new Error('Controller unavailable.');
+      if (type === 'START') { state.inPageActive = true; return [{ result: { ok: true } }]; }
+      if (type === 'BYPASS') { state.inPageActive = false; state.inPageBypasses++; return [{ result: { ok: true } }]; }
+      if (type === 'PING') return [{ result: { ok: true, active: state.inPageActive } }];
+      if (!state.inPageActive) throw new Error('Controller inactive.');
+      if (type === 'SET_ANALYZER_ENABLED') state.inPageAnalyzer = Boolean(data.analyzerEnabled);
+      if (type === 'GET_SPECTRUM') return [{ result: state.inPageAnalyzer
+        ? { active: true, bars: Array(48).fill(17) } : { active: false } }];
+      return [{ result: { ok: true } }];
+    } },
     tabCapture: { async getMediaStreamId() { state.captures++; return 'fake-stream'; } },
-    tabs: { onRemoved: { addListener: (listener) => removedListeners.push(listener) } },
+    tabs: {
+      onRemoved: { addListener: (listener) => removedListeners.push(listener) },
+      onUpdated: { addListener: (listener) => updatedListeners.push(listener) }
+    },
     storage: {
       local: {
         async get(key) { if (state.failRead) throw new Error('Read failure'); return clone({ [key]: state.storage[key] ?? [] }); },
@@ -92,6 +116,10 @@ function createHarness(initial = {}) {
     command: (type, data = {}) => sendMessage({ target: 'service-worker', type, tabId: 1, ...data }),
     closeTab: async (tabId) => {
       removedListeners.forEach((listener) => listener(tabId));
+      await vm.runInContext(`enqueueForTab(${tabId}, () => undefined)`, worker);
+    },
+    navigate: async (tabId) => {
+      updatedListeners.forEach((listener) => listener(tabId, { status: 'loading' }));
       await vm.runInContext(`enqueueForTab(${tabId}, () => undefined)`, worker);
     }
   };
