@@ -13,9 +13,49 @@ const DEFAULT_STATE = Object.freeze({
 });
 const PROTECTED_TAB_MESSAGE = "This tab cannot be controlled.";
 const START_FAILURE_MESSAGE = "Unable to start audio processing.";
+const ACTION_ICONS = {
+  active: {
+    16: chrome.runtime.getURL("icons/active-16.png"),
+    32: chrome.runtime.getURL("icons/active-32.png"),
+    48: chrome.runtime.getURL("icons/active-48.png"),
+    128: chrome.runtime.getURL("icons/active-128.png")
+  },
+  inactive: {
+    16: chrome.runtime.getURL("icons/inactive-16.png"),
+    32: chrome.runtime.getURL("icons/inactive-32.png"),
+    48: chrome.runtime.getURL("icons/inactive-48.png"),
+    128: chrome.runtime.getURL("icons/inactive-128.png")
+  }
+};
 
 let creatingOffscreenDocument = null;
 const tabOperationQueues = new Map();
+
+async function setActionIcon(actionState, tabId) {
+  const details = Number.isInteger(tabId) ? { tabId } : {};
+  try {
+    await chrome.action.setIcon({ ...details, path: ACTION_ICONS[actionState] });
+  } catch (error) {
+    // Some Chromium builds are stricter with multiresolution dictionaries.
+    await chrome.action.setIcon({ ...details, path: ACTION_ICONS[actionState]["32"] });
+  }
+}
+
+async function updateTabAction(tabId, enabled) {
+  if (!Number.isInteger(tabId) || !chrome.action?.setIcon) {
+    return;
+  }
+
+  const actionState = enabled ? "active" : "inactive";
+  const title = `Tab Audio Control — ${enabled ? "ON" : "OFF"}`;
+  try {
+    await setActionIcon(actionState, tabId);
+    await chrome.action.setTitle({ tabId, title });
+  } catch (error) {
+    // The tab can disappear between an audio operation and the visual update.
+    console.warn(`Tab Audio Control: unable to update the icon for tab ${tabId}.`, error);
+  }
+}
 
 function enqueueForTab(tabId, operation) {
   const previous = tabOperationQueues.get(tabId) || Promise.resolve();
@@ -104,19 +144,19 @@ function looksLikeProtectedTabError(error) {
 }
 
 async function cleanupFailedStart(tabId) {
-  if (!(await hasOffscreenDocument())) {
-    return;
+  if (await hasOffscreenDocument()) {
+    try {
+      await sendToAudioEngine("STOP_SESSION", { tabId });
+    } catch (error) {
+      console.warn(`Tab Audio Control: partial cleanup failed for tab ${tabId}.`, error);
+    }
   }
-
-  try {
-    await sendToAudioEngine("STOP_SESSION", { tabId });
-  } catch (error) {
-    console.warn(`Tab Audio Control: partial cleanup failed for tab ${tabId}.`, error);
-  }
+  await updateTabAction(tabId, false);
 }
 
 async function enable(tabId, tabUrl) {
   if (isProtectedTabUrl(tabUrl)) {
+    await updateTabAction(tabId, false);
     throw new Error(PROTECTED_TAB_MESSAGE);
   }
 
@@ -167,11 +207,23 @@ async function handlePopupMessage(message) {
 
   switch (message.type) {
     case "GET_STATE":
-      return enqueueForTab(tabId, () => getState(tabId));
+      return enqueueForTab(tabId, async () => {
+        const state = await getState(tabId);
+        await updateTabAction(tabId, state.enabled);
+        return state;
+      });
     case "ENABLE":
-      return enqueueForTab(tabId, () => enable(tabId, message.tabUrl));
+      return enqueueForTab(tabId, async () => {
+        const state = await enable(tabId, message.tabUrl);
+        await updateTabAction(tabId, state.enabled);
+        return state;
+      });
     case "DISABLE":
-      return enqueueForTab(tabId, () => disable(tabId));
+      return enqueueForTab(tabId, async () => {
+        const state = await disable(tabId);
+        await updateTabAction(tabId, state.enabled);
+        return state;
+      });
     case "SET_VOLUME":
       return enqueueForTab(tabId, () => updateSession("SET_VOLUME", tabId, { volume: message.volume }));
     case "SET_MUTED":
@@ -239,6 +291,8 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 });
 
 chrome.tabs.onRemoved.addListener((tabId) => {
+  // Chrome discards this tab's action override automatically; DELETE_TAB clears
+  // the corresponding audio/settings state without touching other tab icons.
   void enqueueForTab(tabId, async () => {
     if (!(await hasOffscreenDocument())) {
       return;
@@ -247,6 +301,15 @@ chrome.tabs.onRemoved.addListener((tabId) => {
     await sendToAudioEngine("DELETE_TAB", { tabId });
   }).catch((error) => {
     console.warn(`Tab Audio Control: cleanup failed for closed tab ${tabId}.`, error);
+  });
+});
+
+chrome.tabs.onActivated.addListener(({ tabId }) => {
+  void enqueueForTab(tabId, async () => {
+    const state = await getState(tabId);
+    await updateTabAction(tabId, state.enabled);
+  }).catch((error) => {
+    console.warn(`Tab Audio Control: unable to refresh the icon for tab ${tabId}.`, error);
   });
 });
 
@@ -262,6 +325,7 @@ chrome.runtime.onMessage.addListener((message) => {
 
   void enqueueForTab(tabId, async () => {
     const state = await getState(tabId);
+    await updateTabAction(tabId, state.enabled);
     await chrome.runtime.sendMessage({
       target: "popup",
       type: "TAB_STATE_CHANGED",

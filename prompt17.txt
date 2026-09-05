@@ -1,0 +1,430 @@
+Lee primero:
+
+* `DEVELOPMENT_SPEC.md`
+* `log.md`, si existe
+
+y revisa cuidadosamente el estado actual del proyecto antes de modificar archivos.
+
+## OBJETIVO GENERAL
+
+Quiero ordenar primero el versionado actual y luego recuperar dos mejoras de interfaz que se perdieron al restaurar la antigua v0.8 desde el experimento v0.9:
+
+1. editor inline para guardar/renombrar presets debajo del ecualizador;
+2. botones `Reset 100%` y `Mute` apilados verticalmente y aprovechando mejor el panel Audio.
+
+No realizar ningún otro rediseño.
+
+---
+
+# PARTE 1 — NORMALIZAR VERSIONADO
+
+Actualmente existe una confusión histórica:
+
+* `old_versions/v0.8/` contiene una versión estable anterior;
+* `old_versions/v0.9/` contiene el experimento híbrido que fue descartado;
+* la raíz actual volvió a partir de v0.8, pero después recibió correcciones y mejoras nuevas, incluyendo los iconos dinámicos ON/OFF.
+
+No modificar ni sobrescribir:
+
+```text
+old_versions/v0.8/
+old_versions/v0.9/
+```
+
+Ambos deben conservarse intactos como historial.
+
+## Convertir el estado ACTUAL en v1.0
+
+Antes de hacer cualquier cambio de interfaz:
+
+1. considera el estado actual de la raíz como **v1.0 estable**;
+2. actualiza el número de versión correspondiente a:
+
+```text
+1.0.0
+```
+
+si actualmente todavía figura como `0.8.0`;
+
+3. actualiza referencias explícitas a la versión actual en README/log solamente si corresponde;
+4. no cambies ninguna funcionalidad durante este paso.
+
+Luego crear un snapshot completo:
+
+```text
+old_versions/v1.0/
+```
+
+Debe contener una copia exacta del estado estable actual.
+
+No copiar `old_versions/` recursivamente dentro del snapshot.
+
+No sobrescribir `old_versions/v1.0/` si ya existiera: en ese caso detenerse e informar.
+
+Este snapshot v1.0 debe incluir el estado actual funcionando, incluyendo:
+
+* iconos finales;
+* cambio dinámico gris OFF / rojo ON;
+* tooltip ON/OFF;
+* limpieza de logs temporales de diagnóstico;
+* audio;
+* EQ;
+* presets;
+* analizador.
+
+---
+
+# PARTE 2 — NUEVA VERSIÓN DE TRABAJO
+
+Después de crear correctamente `old_versions/v1.0/`, la raíz pasa a ser:
+
+```text
+v1.1
+```
+
+Actualizar el número de versión activo a:
+
+```text
+1.1.0
+```
+
+Los cambios siguientes pertenecen exclusivamente a v1.1.
+
+---
+
+# PARTE 3 — RECUPERAR EDITOR INLINE DE PRESETS
+
+Actualmente quiero eliminar cualquier formulario adicional de guardado de presets que aparezca en el panel **Audio**.
+
+Quiero reutilizar exclusivamente el área existente debajo del ecualizador donde normalmente están:
+
+* label `PRESET`;
+* selector de presets;
+* botones `Save preset`, `Rename`, `Delete`.
+
+La altura general del popup no debe crecer al guardar o renombrar.
+
+---
+
+## Estado normal
+
+Mantener:
+
+```text
+PRESET   [ Custom ▼ ]
+
+[ Save preset ] [ Rename ] [ Delete ]
+```
+
+---
+
+## Al pulsar `Save preset`
+
+Transformar temporalmente esa misma zona en:
+
+```text
+NAME     [ campo de texto ]
+
+[ Save ] [ Cancel ]
+```
+
+Comportamiento:
+
+* ocultar temporalmente el selector;
+* mostrar un input en exactamente el mismo lugar;
+* cambiar `PRESET` por `NAME`;
+* reutilizar el botón `Save preset` como `Save`;
+* reutilizar `Rename` como `Cancel`;
+* ocultar `Delete` durante la edición;
+* dar foco automáticamente al campo de nombre;
+* no agregar otra fila;
+* no aumentar la altura del panel.
+
+Preferir mantener selector e input dentro del mismo contenedor y alternar visibilidad mediante `hidden`, clases CSS o equivalente.
+
+---
+
+# PARTE 4 — GUARDAR PRESET
+
+Al pulsar `Save`:
+
+* usar la lógica existente de guardado;
+* mantener todas las validaciones actuales;
+* mantener almacenamiento en `chrome.storage.local`;
+* seleccionar automáticamente el preset recién creado;
+* salir del modo edición;
+* restaurar:
+
+```text
+PRESET   [ Nuevo preset ▼ ]
+
+[ Save preset ] [ Rename ] [ Delete ]
+```
+
+No modificar la curva EQ.
+
+No cambiar la estructura actual de almacenamiento de presets.
+
+---
+
+# PARTE 5 — CANCELAR
+
+Al pulsar `Cancel`:
+
+* no guardar;
+* no modificar la curva EQ;
+* no modificar selección previa innecesariamente;
+* salir inmediatamente del modo edición;
+* restaurar selector y botones normales.
+
+---
+
+# PARTE 6 — RENAME
+
+Reutilizar exactamente el mismo editor inline.
+
+Al pulsar `Rename` sobre un preset personalizado:
+
+```text
+NAME     [ nombre actual ]
+
+[ Save ] [ Cancel ]
+```
+
+Debe:
+
+* precargar el nombre existente;
+* seleccionar el texto completo del input;
+* reutilizar la lógica actual de rename;
+* `Cancel` debe salir sin cambios.
+
+Los presets de fábrica continúan sin poder renombrarse.
+
+---
+
+# PARTE 7 — ESTADO DE EDICIÓN
+
+Usar un estado simple y claro, por ejemplo:
+
+```javascript
+presetEditMode = null;
+presetEditMode = "save";
+presetEditMode = "rename";
+```
+
+o equivalente.
+
+No crear sistemas de estado innecesarios.
+
+Evitar crear y destruir elementos DOM repetidamente.
+
+---
+
+# PARTE 8 — ELIMINAR FORMULARIO EXTRA DEL PANEL AUDIO
+
+Eliminar completamente cualquier formulario independiente del panel Audio utilizado para guardar/renombrar presets.
+
+Eliminar, si existen y son exclusivos de ese formulario:
+
+* labels;
+* input;
+* botones;
+* contenedores;
+* CSS;
+* listeners;
+* referencias JS.
+
+El panel Audio debe quedar compacto.
+
+---
+
+# PARTE 9 — RESET 100% Y MUTE
+
+Recuperar también el ajuste visual que se había realizado anteriormente.
+
+Los botones:
+
+```text
+Reset 100%
+Mute
+```
+
+deben quedar apilados verticalmente dentro del panel Audio.
+
+Resultado aproximado:
+
+```text
+[        Reset 100%        ]
+
+[           Mute           ]
+```
+
+Requisitos:
+
+* ambos ocupan el ancho disponible del contenedor;
+* separación vertical moderada;
+* altura cómoda y coherente con el resto de la interfaz;
+* aprovechar el espacio libre del panel Audio;
+* no agregar nuevos contenedores salvo que sea técnicamente necesario.
+
+Si actualmente ambos siguen dentro de un contenedor `.button-row` usado exclusivamente por estos dos botones, preferir resolverlo mediante CSS:
+
+```css
+.button-row {
+    flex-direction: column;
+    align-items: stretch;
+}
+
+.button-row button {
+    flex: none;
+    width: 100%;
+}
+```
+
+Ajustar `gap`, margen y altura solamente si es necesario para recuperar la distribución compacta que tenía anteriormente.
+
+Antes de cambiar reglas globales, verificar que `.button-row` no sea reutilizado en otra zona donde el cambio provoque efectos secundarios.
+
+---
+
+# PARTE 10 — ALTURA DEL POPUP
+
+Objetivo importante:
+
+El popup debe conservar prácticamente la misma altura en:
+
+* modo normal;
+* guardar preset;
+* renombrar preset.
+
+No debe aparecer scroll nuevo por entrar en modo edición.
+
+Recordar que Chrome tiene espacio vertical limitado para popups.
+
+No agrandar innecesariamente:
+
+* paneles;
+* faders;
+* Spectrum Analyzer;
+* márgenes;
+* paddings.
+
+---
+
+# PARTE 11 — NO MODIFICAR
+
+No tocar funcionalidad de:
+
+* DSP;
+* offscreen audio;
+* captura de pestaña;
+* volumen;
+* mute, salvo presentación CSS de su botón;
+* EQ;
+* frecuencias;
+* presets de fábrica;
+* estructura de almacenamiento;
+* Spectrum Analyzer;
+* iconos;
+* lógica dinámica de iconos;
+* tooltip ON/OFF;
+* permisos;
+* arquitectura;
+* fullscreen;
+* service worker, salvo que exista una necesidad técnica real no relacionada con UI.
+
+No reintroducir nada de la arquitectura experimental v0.9.
+
+En particular, NO agregar:
+
+* `activeTab`;
+* `scripting`;
+* procesamiento mediante HTMLMediaElement;
+* MutationObserver para medios;
+* backend híbrido.
+
+La arquitectura activa debe seguir siendo la estable basada en `tabCapture` + offscreen Web Audio.
+
+---
+
+# PARTE 12 — ARCHIVOS ESPERADOS
+
+Este cambio de interfaz debería limitarse idealmente a:
+
+```text
+popup/popup.html
+popup/popup.css
+popup/popup.js
+```
+
+Además de los archivos mínimos necesarios para actualizar número de versión/documentación:
+
+```text
+manifest.json
+README.md
+log.md
+```
+
+si corresponde.
+
+Si necesitás modificar otro archivo funcional, justificarlo antes de hacerlo.
+
+---
+
+# PARTE 13 — VERIFICACIÓN
+
+Comprobar:
+
+1. v1.0 fue preservada correctamente en `old_versions/v1.0/`;
+2. `old_versions/v0.8/` permanece intacta;
+3. `old_versions/v0.9/` permanece intacta;
+4. raíz activa indica v1.1.0;
+5. `Save preset` abre editor inline debajo del EQ;
+6. no aparece formulario nuevo en Audio;
+7. `Cancel` funciona;
+8. `Save` funciona;
+9. `Rename` usa el mismo editor;
+10. presets de fábrica continúan protegidos;
+11. validación de nombres sigue funcionando;
+12. almacenamiento sigue funcionando;
+13. curva EQ no cambia accidentalmente;
+14. Reset 100% y Mute aparecen apilados verticalmente;
+15. no aparece scroll nuevo;
+16. Audio Processing sigue funcionando;
+17. EQ sigue funcionando;
+18. Spectrum Analyzer sigue funcionando;
+19. icono gris/rojo ON/OFF sigue funcionando;
+20. tooltip ON/OFF sigue funcionando;
+21. permisos no cambiaron.
+
+Ejecutar también las pruebas existentes y `git diff --check`.
+
+---
+
+# PARTE 14 — LOG
+
+Agregar una entrada breve a `log.md`, si existe, dejando claro:
+
+* v1.0 = nueva baseline estable después de abandonar el experimento v0.9;
+* v0.9 queda preservada únicamente como experimento histórico fallido;
+* v1.1 recupera editor inline de presets y layout vertical de Reset/Mute.
+
+No borrar historial anterior.
+
+---
+
+# AL FINALIZAR
+
+Informar brevemente:
+
+* snapshot creado;
+* versión anterior y nueva;
+* archivos modificados;
+* cómo se implementó `presetEditMode`;
+* cómo se alternan selector/input;
+* confirmación de eliminación del formulario del panel Audio;
+* cómo se reorganizaron Reset/Mute;
+* confirmación de ausencia de scroll nuevo;
+* confirmación de que audio/DSP no fueron modificados;
+* confirmación de permisos sin cambios;
+* resultado de las pruebas.

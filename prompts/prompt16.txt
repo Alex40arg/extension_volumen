@@ -1,0 +1,69 @@
+Revisa la implementación actual del cambio dinámico de icono.
+
+Los archivos PNG son correctos:
+
+* `inactive-*` = gris azulado
+* `active-*` = rojo
+
+Actualmente el icono permanece gris aunque `Audio Processing` esté ON.
+
+Quiero simplificar la lógica de `chrome.action` para utilizar exclusivamente estado **por pestaña**.
+
+En `background/service-worker.js`, revisa:
+
+`updateTabAction(tabId, enabled)`
+
+Actualmente la función:
+
+1. establece un icono específico mediante `tabId`;
+2. luego consulta la pestaña activa;
+3. vuelve a establecer también un icono global sin `tabId`.
+
+Eliminar esa segunda actualización global.
+
+La función debe limitarse conceptualmente a:
+
+```javascript
+async function updateTabAction(tabId, enabled) {
+  if (!Number.isInteger(tabId) || !chrome.action?.setIcon) {
+    return;
+  }
+
+  const actionState = enabled ? "active" : "inactive";
+  const title = `Tab Audio Control — ${enabled ? "ON" : "OFF"}`;
+
+  try {
+    await setActionIcon(actionState, tabId);
+    await chrome.action.setTitle({ tabId, title });
+  } catch (error) {
+    console.warn(
+      `Tab Audio Control: unable to update the icon for tab ${tabId}.`,
+      error
+    );
+  }
+}
+```
+
+No establecer iconos globales mediante `chrome.action.setIcon()` sin `tabId`.
+
+Mantener:
+
+* `chrome.tabs.onActivated`
+* actualización tras ENABLE
+* actualización tras DISABLE
+* actualización tras SESSION_ENDED
+* cleanup existente
+
+No modificar audio, EQ, presets, popup ni permisos.
+
+Después verifica:
+
+1. pestaña A OFF → icono gris;
+2. pestaña A ON → icono rojo;
+3. pestaña B OFF → al cambiar a B debe verse gris;
+4. volver a A → debe verse rojo;
+5. apagar A → debe volver a gris.
+
+No agregues permisos ni otras funciones.
+
+Al finalizar, indica exactamente qué líneas/lógica cambiaste.

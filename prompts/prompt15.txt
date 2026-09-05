@@ -1,0 +1,326 @@
+Lee `DEVELOPMENT_SPEC.md` antes de modificar archivos.
+
+Quiero cerrar la integración de iconos de la extensión.
+
+## Archivo de referencia
+
+Dentro de la carpeta:
+
+`icons/`
+
+existe:
+
+`icons/modelo 6.svg`
+
+Usa ese archivo como **referencia de silueta** del parlante.
+
+No uses como base los PNG anteriores de iconos, porque a tamaños pequeños pierden demasiada legibilidad.
+
+---
+
+# 1. Objetivo visual
+
+Crear un set de iconos muy simple y legible, pensado especialmente para tamaños pequeños de Chrome.
+
+Prioridades:
+
+1. legibilidad a 16x16;
+2. forma clara de parlante;
+3. alto contraste;
+4. pocos detalles;
+5. coherencia con la paleta de la extensión.
+
+No intentes conservar detalles finos del SVG si perjudican la lectura.
+
+---
+
+# 2. Simplificación
+
+A partir de `icons/modelo 6.svg`:
+
+* usar la silueta básica de parlante;
+* convertirla visualmente a una forma sólida y simple;
+* evitar contornos demasiado finos;
+* evitar degradados;
+* evitar ondas;
+* evitar detalles pequeños;
+* hacer que el parlante ocupe la mayor parte posible del lienzo.
+
+El icono debe funcionar como si fuera un pictograma.
+
+---
+
+# 3. Estado OFF
+
+Crear variante OFF usando un tono gris azulado / azul desaturado.
+
+Color sugerido:
+
+`#7f90a8`
+
+o un tono equivalente que se vea bien tanto en barra clara como oscura.
+
+No usar negro puro.
+
+---
+
+# 4. Estado ON
+
+Crear variante ON usando el rojo de acento de la extensión.
+
+Color sugerido:
+
+`#d75b5b`
+
+Debe ser claramente distinguible del estado OFF.
+
+No usar rojo puro brillante.
+
+---
+
+# 5. Fondo
+
+Todos los iconos deben tener:
+
+* fondo transparente;
+* canal alpha real;
+* sin círculo;
+* sin cuadrado;
+* sin fondo decorativo.
+
+Solo el pictograma del parlante.
+
+---
+
+# 6. Tamaños finales
+
+Generar exactamente:
+
+```text
+icons/inactive-16.png
+icons/inactive-32.png
+icons/inactive-48.png
+icons/inactive-128.png
+
+icons/active-16.png
+icons/active-32.png
+icons/active-48.png
+icons/active-128.png
+```
+
+---
+
+# 7. Tratamiento especial para 16x16
+
+El tamaño 16x16 es el más importante.
+
+No te limites a reducir mecánicamente el SVG.
+
+Si hace falta:
+
+* engrosar la forma;
+* simplificar bordes;
+* reducir detalles;
+* ocupar más área útil;
+* ajustar manualmente el diseño;
+
+para que a 16x16 siga siendo claramente reconocible como parlante.
+
+La legibilidad tiene prioridad sobre la fidelidad exacta al SVG.
+
+---
+
+# 8. Tratamiento para 32x32
+
+También verificar visualmente que 32x32 mantenga buena presencia.
+
+Debe seguir viéndose nítido y claro.
+
+---
+
+# 9. Manifest
+
+Actualizar `manifest.json` para incluir los iconos de extensión.
+
+Agregar la sección correspondiente para:
+
+* icono general de la extensión;
+* action icon si corresponde.
+
+Usar por defecto los iconos OFF / inactive.
+
+No agregar permisos nuevos.
+
+---
+
+# 10. Cambio dinámico de icono
+
+Implementar cambio de icono según el estado de `Audio Processing`.
+
+Cuando la pestaña actual esté:
+
+## OFF
+
+Usar:
+
+```text
+inactive-16.png
+inactive-32.png
+inactive-48.png
+inactive-128.png
+```
+
+## ON
+
+Usar:
+
+```text
+active-16.png
+active-32.png
+active-48.png
+active-128.png
+```
+
+---
+
+# 11. Estado por pestaña
+
+El icono debe reflejar el estado de la pestaña correspondiente.
+
+Ejemplo:
+
+```text
+Tab A → Audio Processing ON → icono rojo
+Tab B → Audio Processing OFF → icono gris azulado
+```
+
+Al cambiar de pestaña, Chrome debe mostrar el icono apropiado para esa pestaña.
+
+No usar un único estado global si la extensión ya mantiene procesamiento independiente por tabId.
+
+---
+
+# 12. Integración con la lógica existente
+
+Reutilizar el estado actual de `Audio Processing`.
+
+No crear un segundo sistema de estado.
+
+No modificar:
+
+* DSP;
+* EQ;
+* presets;
+* Spectrum Analyzer;
+* storage;
+* volumen;
+* mute;
+
+salvo lo estrictamente necesario para actualizar el icono.
+
+---
+
+# 13. Chrome Action API
+
+Usar la API apropiada, por ejemplo:
+
+`chrome.action.setIcon()`
+
+o mecanismo equivalente actual.
+
+Actualizar el icono cuando:
+
+* se activa Audio Processing;
+* se desactiva Audio Processing;
+* se cierra una pestaña;
+* cambia la pestaña activa;
+* una sesión termina inesperadamente;
+* el estado se limpia.
+
+---
+
+# 14. Tooltip
+
+Actualizar también el título/tooltip si es sencillo.
+
+Ejemplos:
+
+OFF:
+
+`Tab Audio Control — OFF`
+
+ON:
+
+`Tab Audio Control — ON`
+
+Esto es opcional si complica innecesariamente la implementación.
+
+---
+
+# 15. Estado inicial
+
+Al cargar o recargar la extensión:
+
+* todas las pestañas deben mostrarse inicialmente OFF salvo que el estado real indique otra cosa;
+* no activar procesamiento automáticamente;
+* no alterar audio.
+
+---
+
+# 16. Backup
+
+Antes de modificar archivos activos:
+
+1. Guarda snapshot de la versión estable actual en `old_versions/` usando el número de versión actual.
+2. No sobrescribas snapshots existentes.
+3. No copies `old_versions` dentro de sí mismo.
+
+---
+
+# 17. Manifest version
+
+No cambies el número de versión salvo que sea necesario por el flujo actual del proyecto.
+
+Si lo actualizas, usa el siguiente número lógico de versión y menciona el cambio al finalizar.
+
+---
+
+# 18. Permisos
+
+No agregar permisos nuevos.
+
+Mantener únicamente los permisos actuales de la versión estable.
+
+---
+
+# 19. Verificación
+
+Antes de terminar, comprobar:
+
+1. existen los 8 PNG;
+2. todos tienen tamaño correcto;
+3. fondo transparente;
+4. 16x16 sigue siendo reconocible;
+5. OFF y ON se distinguen claramente;
+6. manifest apunta a archivos existentes;
+7. icono cambia al activar/desactivar;
+8. dos pestañas pueden mostrar estados distintos;
+9. no hay errores en `chrome://extensions`;
+10. no se rompió ninguna funcionalidad de audio.
+
+---
+
+# 20. Al finalizar
+
+Devuélveme un resumen breve indicando:
+
+* archivos generados;
+* cómo simplificaste el SVG;
+* colores finales usados;
+* confirmación de legibilidad especial en 16x16;
+* archivos modificados;
+* cambios en manifest;
+* cómo implementaste el cambio dinámico;
+* confirmación de estado independiente por pestaña;
+* confirmación de permisos sin cambios;
+* pasos exactos para probarlo en Chrome.

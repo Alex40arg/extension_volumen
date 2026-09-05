@@ -8,8 +8,8 @@ const source = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 const clone = (value) => JSON.parse(JSON.stringify(value));
 
 function createHarness(initial = {}) {
-  const state = { storage: clone(initial), writes: 0, captures: 0, failRead: false, failWrite: false, logs: [] };
-  const workerListeners = [], audioListeners = [], removedListeners = [], storageListeners = [];
+  const state = { storage: clone(initial), writes: 0, captures: 0, failRead: false, failWrite: false, rejectIconDictionaries: false, logs: [], iconCalls: [], titleCalls: [], activeTabId: 1 };
+  const workerListeners = [], audioListeners = [], removedListeners = [], activatedListeners = [], storageListeners = [];
   let offscreenExists = false;
   const logger = { warn: (...args) => state.logs.push(args), error: (...args) => state.logs.push(args), log() {} };
   function dispatch(listeners, message) {
@@ -69,7 +69,18 @@ function createHarness(initial = {}) {
     },
     offscreen: { async createDocument() { offscreenExists = true; } },
     tabCapture: { async getMediaStreamId() { state.captures++; return 'fake-stream'; } },
-    tabs: { onRemoved: { addListener: (listener) => removedListeners.push(listener) } },
+    action: {
+      async setIcon(details) {
+        if (state.rejectIconDictionaries && typeof details.path === 'object') throw new Error('Dictionary rejected');
+        state.iconCalls.push(clone(details));
+      },
+      async setTitle(details) { state.titleCalls.push(clone(details)); }
+    },
+    tabs: {
+      onRemoved: { addListener: (listener) => removedListeners.push(listener) },
+      onActivated: { addListener: (listener) => activatedListeners.push(listener) },
+      async query() { return [{ id: state.activeTabId }]; }
+    },
     storage: {
       local: {
         async get(key) { if (state.failRead) throw new Error('Read failure'); return clone({ [key]: state.storage[key] ?? [] }); },
@@ -92,6 +103,15 @@ function createHarness(initial = {}) {
     command: (type, data = {}) => sendMessage({ target: 'service-worker', type, tabId: 1, ...data }),
     closeTab: async (tabId) => {
       removedListeners.forEach((listener) => listener(tabId));
+      await vm.runInContext(`enqueueForTab(${tabId}, () => undefined)`, worker);
+    },
+    activateTab: async (tabId) => {
+      state.activeTabId = tabId;
+      activatedListeners.forEach((listener) => listener({ tabId }));
+      await vm.runInContext(`enqueueForTab(${tabId}, () => undefined)`, worker);
+    },
+    sessionEnded: async (tabId) => {
+      workerListeners.forEach((listener) => listener({ target: 'service-worker', type: 'SESSION_ENDED', tabId }, {}, () => {}));
       await vm.runInContext(`enqueueForTab(${tabId}, () => undefined)`, worker);
     }
   };

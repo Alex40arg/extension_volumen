@@ -1,0 +1,196 @@
+Lee `DEVELOPMENT_SPEC.md` antes de realizar cambios.
+
+Quiero preparar el set definitivo de iconos de la extensión a partir de dos imágenes maestras ya existentes.
+
+## Archivos fuente
+
+Dentro de la subcarpeta:
+
+`icons/`
+
+existen estos dos archivos maestros:
+
+```text
+icons/active.png
+icons/inactive.png
+```
+
+Usa **exclusivamente esos dos archivos** como fuente.
+
+En la carpeta `icons/` hay otros archivos e imágenes, pero debes **ignorarlos por completo**.
+
+No los modifiques, no los borres y no los uses como referencia.
+
+---
+
+# 1. Objetivo
+
+Generar versiones optimizadas de ambos iconos para estos tamaños:
+
+```text
+16x16
+32x32
+48x48
+128x128
+```
+
+Mantener transparencia.
+
+No agregar fondos.
+
+No alterar diseño, colores, proporciones ni contenido visual.
+
+---
+
+# 2. Archivos de salida
+
+Crear exactamente:
+
+```text
+icons/active-16.png
+icons/active-32.png
+icons/active-48.png
+icons/active-128.png
+
+icons/inactive-16.png
+icons/inactive-32.png
+icons/inactive-48.png
+icons/inactive-128.png
+```
+
+No sobrescribir:
+
+```text
+icons/active.png
+icons/inactive.png
+```
+
+Los archivos maestros deben quedar intactos.
+
+---
+
+# 3. Redimensionado
+
+Partir siempre de los archivos maestros originales:
+
+```text
+active.png
+inactive.png
+```
+
+No generar tamaños pequeños a partir de otros tamaños ya reducidos.
+
+Ejemplo correcto:
+
+```text
+active.png → active-128.png
+active.png → active-48.png
+active.png → active-32.png
+active.png → active-16.png
+```
+
+No hacer:
+
+```text
+active-128.png → active-48.png → active-32.png → active-16.png
+```
+
+---
+
+# 4. Calidad
+
+Usar un método de redimensionado de alta calidad.
+
+Preferir un filtro adecuado para reducción de imágenes, por ejemplo:
+
+```text
+Lanczos
+```
+
+o equivalente de alta calidad.
+
+Mantener bordes lo más limpios posible.
+
+---
+
+# 5. Transparencia
+
+Conservar correctamente el canal alpha.
+
+Los PNG finales deben mantener fondo transparente.
+
+No convertir transparencia en:
+
+* negro;
+* blanco;
+* gris;
+* checkerboard.
+
+---
+
+# 6. Proporciones
+
+Mantener aspecto cuadrado y proporciones originales.
+
+No deformar el parlante.
+
+Si el master ya es cuadrado, simplemente escalar proporcionalmente.
+
+No recortar contenido.
+
+No agregar padding nuevo salvo que sea técnicamente necesario para preservar el contenido completo.
+
+---
+
+# 7. Formato
+
+Todos los archivos finales deben ser:
+
+```text
+PNG
+RGBA
+```
+
+con transparencia real.
+
+---
+
+# 8. Verificación
+
+Después de generar los archivos, verificar:
+
+1. existen los 8 archivos finales;
+2. cada uno tiene exactamente el tamaño correspondiente;
+3. el canal alpha existe;
+4. `active.png` e `inactive.png` siguen intactos;
+5. ningún otro archivo de `icons/` fue modificado;
+6. las imágenes conservan el diseño original.
+
+---
+
+# 9. No modificar todavía la extensión
+
+En esta tarea NO cambies:
+
+* `manifest.json`;
+* `service-worker.js`;
+* `popup`;
+* lógica ON/OFF;
+* permisos;
+* versión;
+* README.
+
+Esta tarea es solamente para preparar los PNG finales.
+
+---
+
+# 10. Al finalizar
+
+Devuélveme un resumen breve indicando:
+
+* archivos generados;
+* tamaños confirmados;
+* método de redimensionado utilizado;
+* confirmación de transparencia;
+* confirmación de que `active.png` e `inactive.png` quedaron intactos;
+* confirmación de que los demás archivos de `icons/` fueron ignorados.

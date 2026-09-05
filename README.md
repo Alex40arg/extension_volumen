@@ -30,6 +30,7 @@ en DSP, captura, storage ni permisos.
 - Recuperación ante fallos de captura y finalización inesperada del stream.
 - Cleanup idempotente y protección ante interacciones rápidas.
 - Badge global OFF/ON y mensajes de error visibles cuando corresponde.
+- Icono de barra por pestaña: gris azulado cuando Audio Processing está OFF y rojo moderado cuando está ON, con tooltip correspondiente.
 - Ecualizador gráfico de 7 bandas (30 Hz, 90 Hz, 300 Hz, 1 kHz, 3 kHz, 8 kHz y 15 kHz), independiente por pestaña.
 - Ajuste de cada banda entre -12 dB y +12 dB, en pasos de 1 dB y en tiempo real.
 - Presets de fábrica inmutables **Flat**, **Soft V**, **Bass**, **Voice** y **Treble**. Flat está disponible únicamente en el selector; se eliminó el botón redundante.
@@ -113,6 +114,7 @@ volumen ni EQ. Renombrar conserva ID y ganancias; borrar conserva las curvas tem
 5. Ajusta el volumen, prueba **Mute** y después **Reset 100%**; ninguno debe borrar el EQ.
 6. Repite en otra pestaña para comprobar que conserva volumen y EQ independientes.
 7. Desactiva el procesamiento para devolver el audio al control normal de Chrome.
+8. Alterna entre ambas pestañas y confirma que cada una conserva su propio icono ON/OFF en la barra.
 
 ## Prueba de presets en Chrome
 

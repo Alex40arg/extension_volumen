@@ -333,8 +333,6 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
   cursor: pointer;
   direction: rtl;
   writing-mode: vertical-lr;
-  -webkit-appearance: slider-vertical;
-  appearance: slider-vertical;
 }
 
 .eq-band input:disabled { cursor: not-allowed; }
